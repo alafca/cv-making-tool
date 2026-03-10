@@ -1,0 +1,164 @@
+@page {
+    size: A4;
+    margin: 1.5cm 2cm;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Calibri, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.4;
+    color: #222;
+}
+
+a {
+    color: #222;
+    text-decoration: none;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 0.6cm;
+}
+
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1cm;
+    margin-bottom: 0.3cm;
+}
+
+.photo {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    height: 80px;
+    min-height: 80px;
+    max-height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    overflow: hidden;
+}
+
+.name {
+    font-size: 20pt;
+    font-weight: 700;
+    color: #111;
+    letter-spacing: 0.5pt;
+}
+
+.headline {
+    font-size: 11pt;
+    font-style: italic;
+    color: #444;
+    margin-bottom: 0.15cm;
+}
+
+.contact-line {
+    font-size: 9.5pt;
+    color: #444;
+}
+
+.contact-line a {
+    color: #444;
+}
+
+/* Sections */
+h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5pt;
+    color: #111;
+    border-bottom: 1px solid #999;
+    padding-bottom: 0.1cm;
+    margin-top: 0.5cm;
+    margin-bottom: 0.3cm;
+}
+
+/* Experience / Education entries */
+.entry {
+    margin-bottom: 0.35cm;
+    page-break-inside: avoid;
+}
+
+.entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.entry-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #111;
+}
+
+.entry-dates {
+    font-size: 9.5pt;
+    color: #555;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 0.5cm;
+}
+
+.entry-subtitle {
+    font-size: 10pt;
+    color: #444;
+    margin-bottom: 0.1cm;
+}
+
+.entry-description {
+    font-size: 10pt;
+    color: #444;
+    margin-bottom: 0.1cm;
+}
+
+.entry ul {
+    margin-left: 0.5cm;
+    margin-top: 0.05cm;
+}
+
+.entry li {
+    font-size: 10pt;
+    margin-bottom: 0.05cm;
+}
+
+/* Skills */
+.skills-list {
+    list-style: none;
+    padding: 0;
+}
+
+.skills-list li {
+    margin-bottom: 0.1cm;
+    font-size: 10pt;
+}
+
+.skill-category {
+    font-weight: 700;
+}
+
+/* Languages */
+.languages-list {
+    list-style: disc;
+    margin-left: 0.5cm;
+}
+
+.languages-list li {
+    font-size: 10pt;
+    margin-bottom: 0.05cm;
+}
+
+/* Summary */
+.summary p {
+    font-size: 10.5pt;
+    text-align: justify;
+}

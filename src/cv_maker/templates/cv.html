@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="{{ data.meta.lang | default('es') }}">
+<head>
+    <meta charset="UTF-8">
+    <style>{{ css | safe }}</style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            {% if photo_uri %}
+            <img class="photo" src="{{ photo_uri }}" alt="Profile photo" width="80" height="80">
+            {% endif %}
+            <div>
+                <h1 class="name">{{ data.name }}</h1>
+                {% if data.headline %}
+                <p class="headline">{{ data.headline }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% if data.contact %}
+        <p class="contact-line">
+            {% autoescape false %}
+            {{ data.contact.email }}
+            {% if data.contact.location %} | {{ data.contact.location }}{% endif %}
+            {% if data.contact.linkedin %} | <a href="https://linkedin.com/in/{{ data.contact.linkedin }}">linkedin.com/in/{{ data.contact.linkedin }}</a>{% endif %}
+            {% if data.contact.github %} | <a href="https://github.com/{{ data.contact.github }}">github.com/{{ data.contact.github }}</a>{% endif %}
+            {% endautoescape %}
+        </p>
+        {% endif %}
+    </div>
+
+    {% if data.summary %}
+    <section class="summary">
+        <h2>{{ headers.summary }}</h2>
+        <p>{{ data.summary }}</p>
+    </section>
+    {% endif %}
+
+    {% if data.experience %}
+    <section>
+        <h2>{{ headers.experience }}</h2>
+        {% for job in data.experience %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title">{{ job.title }}</span>
+                <span class="entry-dates">{{ job.dates }}</span>
+            </div>
+            <div class="entry-subtitle">{{ job.company }}{% if job.location %}, {{ job.location }}{% endif %}</div>
+            {% if job.description %}
+            <div class="entry-description">{{ job.description }}</div>
+            {% endif %}
+            {% if job.bullets %}
+            <ul>
+                {% for bullet in job.bullets %}
+                <li>{{ bullet }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.education %}
+    <section>
+        <h2>{{ headers.education }}</h2>
+        {% for edu in data.education %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title">{{ edu.institution }}</span>
+                <span class="entry-dates">{{ edu.dates }}</span>
+            </div>
+            <div class="entry-subtitle">{{ edu.degree }}</div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.skills %}
+    <section>
+        <h2>{{ headers.skills }}</h2>
+        <ul class="skills-list">
+            {% for skill in data.skills %}
+            <li><span class="skill-category">{{ skill.category }}:</span> {{ skill.entries }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if data.languages %}
+    <section>
+        <h2>{{ headers.languages }}</h2>
+        <ul class="languages-list">
+            {% for lang in data.languages %}
+            <li>{{ lang.name }} ({{ lang.level }})</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if data.certifications %}
+    <section>
+        <h2>{{ headers.certifications }}</h2>
+        <ul class="languages-list">
+            {% for cert in data.certifications %}
+            <li>{{ cert }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+</body>
+</html>

@@ -1,1 +1,7 @@
-/data
+/data/old_resume_spanish.pdf
+/data/fotoperfil.jpeg
+/output/
+__pycache__/
+*.egg-info/
+.venv/
+.claude
