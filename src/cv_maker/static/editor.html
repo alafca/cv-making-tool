@@ -44,7 +44,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     flex: 1; display: flex; min-height: 0;
 }
 .editor-pane {
-    width: 50%; display: flex; flex-direction: column; border-right: 1px solid #ddd;
+    flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ddd;
 }
 .editor-pane textarea {
     flex: 1; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', monospace;
@@ -52,13 +52,19 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     color: #cdd6f4; tab-size: 2;
 }
 .preview-pane {
-    width: 50%; overflow: auto; background: #e0e0e0; display: flex;
+    flex: 1; overflow: auto; background: #e0e0e0; display: flex;
     justify-content: center; padding: 20px;
 }
 .preview-pane iframe {
     width: 210mm; min-height: 297mm; border: none; background: #fff;
     box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 }
+.splitter {
+    width: 6px; cursor: col-resize; background: #ccc;
+    transition: background .15s;
+    flex-shrink: 0;
+}
+.splitter:hover, .splitter.dragging { background: #888; }
 
 /* Fields view */
 #fieldsView {
@@ -121,8 +127,8 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     <label>Color <input type="color" id="color" value="#111111"></label>
     <label><input type="checkbox" id="photo" checked> Photo</label>
     <div class="view-toggle">
-        <button id="btnYaml" class="active" onclick="toggleView('yaml')">YAML</button>
-        <button id="btnFields" onclick="toggleView('fields')">Fields</button>
+        <button id="btnFields" class="active" onclick="toggleView('fields')">Fields</button>
+        <button id="btnYaml" onclick="toggleView('yaml')">YAML</button>
     </div>
     <span class="spacer"></span>
     <button class="btn-save" id="saveBtn">Save</button>
@@ -135,7 +141,8 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
         <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
         <div id="fieldsView"></div>
     </div>
-    <div class="preview-pane">
+    <div class="splitter" id="splitter"></div>
+    <div class="preview-pane" id="previewPane">
         <iframe id="preview"></iframe>
     </div>
 </div>
@@ -150,7 +157,7 @@ const fieldsView = document.getElementById('fieldsView');
 const btnYaml = document.getElementById('btnYaml');
 const btnFields = document.getElementById('btnFields');
 
-let currentView = 'yaml';
+let currentView = 'fields';
 
 function flash(msg, err) {
     statusEl.textContent = msg;
@@ -459,7 +466,12 @@ function addCert() { addRepeatable('cert-list', certInput); }
 // Load YAML on start
 fetch('/api/yaml')
     .then(r => r.json())
-    .then(d => { yamlEl.value = d.yaml; refreshPreview(); })
+    .then(d => {
+        yamlEl.value = d.yaml;
+        currentView = 'yaml'; // allow toggleView to switch to fields
+        toggleView('fields');
+        refreshPreview();
+    })
     .catch(e => flash('Load error: ' + e.message, true));
 
 yamlEl.addEventListener('input', schedulePreview);
@@ -532,6 +544,39 @@ document.getElementById('htmlBtn').addEventListener('click', async () => {
         flash('Export error: ' + e.message, true);
     }
 });
+// --- Draggable splitter ---
+(function() {
+    const splitter = document.getElementById('splitter');
+    const editorPane = document.querySelector('.editor-pane');
+    const previewPane = document.getElementById('previewPane');
+    const main = document.querySelector('.main');
+
+    splitter.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        splitter.setPointerCapture(e.pointerId);
+        splitter.classList.add('dragging');
+
+        const onMove = (e) => {
+            const rect = main.getBoundingClientRect();
+            const offset = e.clientX - rect.left;
+            const total = rect.width;
+            const pct = Math.min(Math.max(offset / total * 100, 10), 90);
+            editorPane.style.flex = 'none';
+            previewPane.style.flex = 'none';
+            editorPane.style.width = pct + '%';
+            previewPane.style.width = (100 - pct) + '%';
+        };
+
+        const onUp = (e) => {
+            splitter.classList.remove('dragging');
+            splitter.removeEventListener('pointermove', onMove);
+            splitter.removeEventListener('pointerup', onUp);
+        };
+
+        splitter.addEventListener('pointermove', onMove);
+        splitter.addEventListener('pointerup', onUp);
+    });
+})();
 </script>
 </body>
 </html>
