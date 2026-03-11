@@ -29,5 +29,22 @@ def main():
         action="store_true",
         help="Disable profile photo",
     )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Launch web editor with live preview instead of generating PDF",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="Port for the web editor (default: 8765)",
+    )
     args = parser.parse_args()
-    build_cv(args.data, args.output, args.lang, show_photo=not args.no_photo)
+
+    if args.serve:
+        from cv_maker.server import run_server
+
+        run_server(args.data, port=args.port)
+    else:
+        build_cv(args.data, args.output, args.lang, show_photo=not args.no_photo)

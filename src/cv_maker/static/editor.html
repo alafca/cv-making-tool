@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Maker - Editor</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; }
+.toolbar {
+    display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+    background: #1a1a2e; color: #fff; flex-wrap: wrap;
+}
+.toolbar .brand { font-weight: 700; font-size: 16px; margin-right: 8px; }
+.toolbar label { font-size: 13px; }
+.toolbar select, .toolbar input[type="color"] { cursor: pointer; }
+.toolbar select { padding: 3px 6px; border-radius: 4px; border: 1px solid #555; background: #2a2a4a; color: #fff; font-size: 13px; }
+.toolbar input[type="color"] { width: 28px; height: 28px; border: none; border-radius: 4px; background: none; }
+.toolbar input[type="checkbox"] { cursor: pointer; }
+.toolbar .spacer { flex: 1; }
+.toolbar button {
+    padding: 5px 14px; border: none; border-radius: 4px; font-size: 13px;
+    cursor: pointer; font-weight: 600; transition: opacity .15s;
+}
+.toolbar button:hover { opacity: 0.85; }
+.btn-save { background: #4caf50; color: #fff; }
+.btn-pdf { background: #2196f3; color: #fff; }
+.btn-html { background: #ff9800; color: #fff; }
+.status { font-size: 12px; color: #aaa; margin-left: 8px; }
+.main {
+    flex: 1; display: flex; min-height: 0;
+}
+.editor-pane {
+    width: 50%; display: flex; flex-direction: column; border-right: 1px solid #ddd;
+}
+.editor-pane textarea {
+    flex: 1; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px; line-height: 1.5; border: none; outline: none; background: #1e1e2e;
+    color: #cdd6f4; tab-size: 2;
+}
+.preview-pane {
+    width: 50%; overflow: auto; background: #e0e0e0; display: flex;
+    justify-content: center; padding: 20px;
+}
+.preview-pane iframe {
+    width: 210mm; min-height: 297mm; border: none; background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <span class="brand">CV Maker</span>
+    <label>Lang
+        <select id="lang">
+            <option value="es">ES</option>
+            <option value="en">EN</option>
+        </select>
+    </label>
+    <label>Color <input type="color" id="color" value="#111111"></label>
+    <label><input type="checkbox" id="photo" checked> Photo</label>
+    <span class="spacer"></span>
+    <button class="btn-save" id="saveBtn">Save</button>
+    <button class="btn-pdf" id="pdfBtn">Download PDF</button>
+    <button class="btn-html" id="htmlBtn">Export HTML</button>
+    <span class="status" id="status"></span>
+</div>
+<div class="main">
+    <div class="editor-pane">
+        <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
+    </div>
+    <div class="preview-pane">
+        <iframe id="preview"></iframe>
+    </div>
+</div>
+<script>
+const yamlEl = document.getElementById('yaml');
+const previewEl = document.getElementById('preview');
+const langEl = document.getElementById('lang');
+const colorEl = document.getElementById('color');
+const photoEl = document.getElementById('photo');
+const statusEl = document.getElementById('status');
+
+function flash(msg, err) {
+    statusEl.textContent = msg;
+    statusEl.style.color = err ? '#ff6b6b' : '#aaa';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+}
+
+function getPayload() {
+    return {
+        yaml: yamlEl.value,
+        lang: langEl.value,
+        show_photo: photoEl.checked,
+        primary_color: colorEl.value,
+    };
+}
+
+let debounceTimer;
+function schedulePreview() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(refreshPreview, 500);
+}
+
+async function refreshPreview() {
+    try {
+        const res = await fetch('/api/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getPayload()),
+        });
+        const html = await res.text();
+        previewEl.srcdoc = html;
+    } catch (e) {
+        flash('Preview error: ' + e.message, true);
+    }
+}
+
+// Load YAML on start
+fetch('/api/yaml')
+    .then(r => r.json())
+    .then(d => { yamlEl.value = d.yaml; refreshPreview(); })
+    .catch(e => flash('Load error: ' + e.message, true));
+
+yamlEl.addEventListener('input', schedulePreview);
+langEl.addEventListener('change', refreshPreview);
+colorEl.addEventListener('input', refreshPreview);
+photoEl.addEventListener('change', refreshPreview);
+
+// Tab key inserts spaces in textarea
+yamlEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = yamlEl.selectionStart;
+        const end = yamlEl.selectionEnd;
+        yamlEl.value = yamlEl.value.substring(0, start) + '  ' + yamlEl.value.substring(end);
+        yamlEl.selectionStart = yamlEl.selectionEnd = start + 2;
+        schedulePreview();
+    }
+});
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+    try {
+        await fetch('/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ yaml: yamlEl.value }),
+        });
+        flash('Saved!');
+    } catch (e) {
+        flash('Save error: ' + e.message, true);
+    }
+});
+
+document.getElementById('pdfBtn').addEventListener('click', async () => {
+    flash('Generating PDF...');
+    try {
+        const res = await fetch('/api/pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getPayload()),
+        });
+        if (!res.ok) throw new Error('Server error');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cv.pdf';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        flash('PDF downloaded!');
+    } catch (e) {
+        flash('PDF error: ' + e.message, true);
+    }
+});
+
+document.getElementById('htmlBtn').addEventListener('click', async () => {
+    try {
+        const res = await fetch('/api/export-html', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getPayload()),
+        });
+        if (!res.ok) throw new Error('Server error');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cv.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        flash('HTML exported!');
+    } catch (e) {
+        flash('Export error: ' + e.message, true);
+    }
+});
+</script>
+</body>
+</html>

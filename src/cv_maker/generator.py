@@ -35,11 +35,20 @@ def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
     return f"data:image/jpeg;base64,{b64}"
 
 
-def render_html(data: dict, lang: str, show_photo: bool, yaml_dir: Path) -> str:
+def render_html(
+    data: dict,
+    lang: str,
+    show_photo: bool,
+    yaml_dir: Path,
+    primary_color: str | None = None,
+) -> str:
     headers = get_headers(lang)
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     template = env.get_template("cv.html")
     css = (TEMPLATES_DIR / "style.css").read_text(encoding="utf-8")
+
+    if primary_color:
+        css = f":root {{ --primary-color: {primary_color}; }}\n" + css
 
     photo_uri = None
     if show_photo and data.get("meta", {}).get("photo"):

@@ -1,3 +1,7 @@
+:root {
+    --primary-color: #111;
+}
+
 @page {
     size: A4;
     margin: 1.5cm 2cm;
@@ -50,7 +54,7 @@ a {
 .name {
     font-size: 20pt;
     font-weight: 700;
-    color: #111;
+    color: var(--primary-color);
     letter-spacing: 0.5pt;
 }
 
@@ -76,7 +80,7 @@ h2 {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.5pt;
-    color: #111;
+    color: var(--primary-color);
     border-bottom: 1px solid #999;
     padding-bottom: 0.1cm;
     margin-top: 0.5cm;
@@ -98,7 +102,7 @@ h2 {
 .entry-title {
     font-size: 11pt;
     font-weight: 700;
-    color: #111;
+    color: var(--primary-color);
 }
 
 .entry-dates {
