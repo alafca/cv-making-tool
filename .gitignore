@@ -1,6 +1,7 @@
-/data/*
+/data
 /output/
 __pycache__/
 *.egg-info/
 .venv/
 .claude
+*.yaml

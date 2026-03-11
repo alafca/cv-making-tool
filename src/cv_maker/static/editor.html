@@ -52,12 +52,14 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     color: #cdd6f4; tab-size: 2;
 }
 .preview-pane {
-    flex: 1; overflow: auto; background: #e0e0e0; display: flex;
-    justify-content: center; padding: 20px;
+    flex: 1; overflow-y: auto; overflow-x: hidden; background: #e0e0e0;
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 20px; position: relative;
 }
 .preview-pane iframe {
-    width: 210mm; min-height: 297mm; border: none; background: #fff;
+    width: 210mm; border: none; background: #fff;
     box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    transform-origin: top center; flex-shrink: 0;
 }
 .splitter {
     width: 6px; cursor: col-resize; background: #ccc;
@@ -192,6 +194,7 @@ async function refreshPreview() {
         });
         const html = await res.text();
         previewEl.srcdoc = html;
+        previewEl.onload = fitPreview;
     } catch (e) {
         flash('Preview error: ' + e.message, true);
     }
@@ -565,6 +568,7 @@ document.getElementById('htmlBtn').addEventListener('click', async () => {
             previewPane.style.flex = 'none';
             editorPane.style.width = pct + '%';
             previewPane.style.width = (100 - pct) + '%';
+            fitPreview();
         };
 
         const onUp = (e) => {
@@ -577,6 +581,31 @@ document.getElementById('htmlBtn').addEventListener('click', async () => {
         splitter.addEventListener('pointerup', onUp);
     });
 })();
+
+// --- Scale-to-fit A4 preview ---
+function fitPreview() {
+    const pane = document.getElementById('previewPane');
+    const iframe = document.getElementById('preview');
+    const pad = 40; // 20px padding each side
+    const availW = pane.clientWidth - pad;
+    const ifrW = iframe.offsetWidth;
+    if (!ifrW) return;
+
+    // Auto-size iframe height to its content
+    try {
+        const doc = iframe.contentDocument;
+        if (doc && doc.body) {
+            iframe.style.height = doc.documentElement.scrollHeight + 'px';
+        }
+    } catch (e) {}
+
+    const scale = Math.min(availW / ifrW, 1);
+    iframe.style.transform = 'scale(' + scale + ')';
+    // Adjust the visible height so the pane scrollbar reflects scaled size
+    const actualH = iframe.offsetHeight;
+    iframe.style.marginBottom = (actualH * (scale - 1)) + 'px';
+}
+window.addEventListener('resize', fitPreview);
 </script>
 </body>
 </html>
