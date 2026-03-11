@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CV Maker - Editor</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; }
@@ -27,6 +28,18 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-pdf { background: #2196f3; color: #fff; }
 .btn-html { background: #ff9800; color: #fff; }
 .status { font-size: 12px; color: #aaa; margin-left: 8px; }
+
+/* Toggle buttons */
+.view-toggle { display: flex; gap: 0; margin-left: 8px; }
+.view-toggle button {
+    padding: 4px 12px; border: 1px solid #555; font-size: 12px;
+    cursor: pointer; font-weight: 600; background: #2a2a4a; color: #aaa;
+    transition: background .15s, color .15s;
+}
+.view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.view-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.view-toggle button.active { background: #4caf50; color: #fff; border-color: #4caf50; }
+
 .main {
     flex: 1; display: flex; min-height: 0;
 }
@@ -46,6 +59,54 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     width: 210mm; min-height: 297mm; border: none; background: #fff;
     box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 }
+
+/* Fields view */
+#fieldsView {
+    flex: 1; overflow-y: auto; padding: 16px; background: #fafafa;
+    display: none;
+}
+#fieldsView .section {
+    margin-bottom: 18px; background: #fff; border: 1px solid #e0e0e0;
+    border-radius: 6px; padding: 14px 16px;
+}
+#fieldsView .section-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase; color: #555;
+    margin-bottom: 10px; letter-spacing: 0.5px;
+}
+#fieldsView label.field-label {
+    display: block; font-size: 12px; color: #777; margin-bottom: 3px; margin-top: 8px;
+}
+#fieldsView label.field-label:first-of-type { margin-top: 0; }
+#fieldsView input[type="text"],
+#fieldsView textarea,
+#fieldsView select {
+    width: 100%; padding: 7px 10px; border: 1px solid #d0d0d0; border-radius: 4px;
+    font-size: 13px; font-family: inherit; outline: none; background: #fff;
+    transition: border-color .15s;
+}
+#fieldsView input[type="text"]:focus,
+#fieldsView textarea:focus,
+#fieldsView select:focus { border-color: #4caf50; }
+#fieldsView textarea { resize: vertical; min-height: 60px; }
+
+/* Repeatable groups */
+.repeatable-item {
+    background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 5px;
+    padding: 12px 14px; margin-top: 8px; position: relative;
+}
+.repeatable-item .remove-btn {
+    position: absolute; top: 8px; right: 8px; background: #ff5252; color: #fff;
+    border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0;
+}
+.repeatable-item .remove-btn:hover { background: #d32f2f; }
+.add-btn {
+    margin-top: 8px; padding: 5px 14px; background: #e8f5e9; color: #2e7d32;
+    border: 1px dashed #81c784; border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-weight: 600;
+}
+.add-btn:hover { background: #c8e6c9; }
 </style>
 </head>
 <body>
@@ -59,6 +120,10 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     </label>
     <label>Color <input type="color" id="color" value="#111111"></label>
     <label><input type="checkbox" id="photo" checked> Photo</label>
+    <div class="view-toggle">
+        <button id="btnYaml" class="active" onclick="toggleView('yaml')">YAML</button>
+        <button id="btnFields" onclick="toggleView('fields')">Fields</button>
+    </div>
     <span class="spacer"></span>
     <button class="btn-save" id="saveBtn">Save</button>
     <button class="btn-pdf" id="pdfBtn">Download PDF</button>
@@ -68,6 +133,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 <div class="main">
     <div class="editor-pane">
         <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
+        <div id="fieldsView"></div>
     </div>
     <div class="preview-pane">
         <iframe id="preview"></iframe>
@@ -80,6 +146,11 @@ const langEl = document.getElementById('lang');
 const colorEl = document.getElementById('color');
 const photoEl = document.getElementById('photo');
 const statusEl = document.getElementById('status');
+const fieldsView = document.getElementById('fieldsView');
+const btnYaml = document.getElementById('btnYaml');
+const btnFields = document.getElementById('btnFields');
+
+let currentView = 'yaml';
 
 function flash(msg, err) {
     statusEl.textContent = msg;
@@ -88,6 +159,9 @@ function flash(msg, err) {
 }
 
 function getPayload() {
+    if (currentView === 'fields') {
+        yamlEl.value = fieldsToYaml();
+    }
     return {
         yaml: yamlEl.value,
         lang: langEl.value,
@@ -115,6 +189,272 @@ async function refreshPreview() {
         flash('Preview error: ' + e.message, true);
     }
 }
+
+// --- Toggle View ---
+function toggleView(mode) {
+    if (mode === currentView) return;
+
+    if (mode === 'fields') {
+        try {
+            const data = jsyaml.load(yamlEl.value) || {};
+            yamlToFields(data);
+        } catch (e) {
+            flash('Invalid YAML: ' + e.message, true);
+            return;
+        }
+        yamlEl.style.display = 'none';
+        fieldsView.style.display = 'block';
+        btnFields.classList.add('active');
+        btnYaml.classList.remove('active');
+    } else {
+        yamlEl.value = fieldsToYaml();
+        yamlEl.style.display = '';
+        fieldsView.style.display = 'none';
+        btnYaml.classList.add('active');
+        btnFields.classList.remove('active');
+    }
+    currentView = mode;
+}
+
+// --- Fields → YAML ---
+function fieldsToYaml() {
+    const obj = {};
+    obj.name = gv('f-name');
+    obj.headline = gv('f-headline');
+
+    obj.contact = {
+        email: gv('f-email'),
+        location: gv('f-location'),
+        linkedin: gv('f-linkedin'),
+        github: gv('f-github'),
+    };
+
+    obj.meta = {
+        photo: gv('f-photo'),
+        lang: gv('f-lang'),
+    };
+
+    obj.summary = gv('f-summary');
+
+    // Experience
+    obj.experience = [];
+    fieldsView.querySelectorAll('.exp-item').forEach(el => {
+        const bullets = el.querySelector('.exp-bullets').value
+            .split('\n').map(s => s.trim()).filter(Boolean);
+        obj.experience.push({
+            title: el.querySelector('.exp-title').value,
+            company: el.querySelector('.exp-company').value,
+            location: el.querySelector('.exp-location').value,
+            dates: el.querySelector('.exp-dates').value,
+            description: el.querySelector('.exp-desc').value,
+            bullets,
+        });
+    });
+
+    // Education
+    obj.education = [];
+    fieldsView.querySelectorAll('.edu-item').forEach(el => {
+        obj.education.push({
+            institution: el.querySelector('.edu-inst').value,
+            degree: el.querySelector('.edu-degree').value,
+            dates: el.querySelector('.edu-dates').value,
+        });
+    });
+
+    // Skills
+    obj.skills = [];
+    fieldsView.querySelectorAll('.skill-item').forEach(el => {
+        obj.skills.push({
+            category: el.querySelector('.skill-cat').value,
+            entries: el.querySelector('.skill-entries').value,
+        });
+    });
+
+    // Languages
+    obj.languages = [];
+    fieldsView.querySelectorAll('.lang-item').forEach(el => {
+        obj.languages.push({
+            name: el.querySelector('.lang-name').value,
+            level: el.querySelector('.lang-level').value,
+        });
+    });
+
+    // Certifications
+    const certs = [];
+    fieldsView.querySelectorAll('.cert-input').forEach(el => {
+        if (el.value.trim()) certs.push(el.value.trim());
+    });
+    obj.certifications = certs;
+
+    return jsyaml.dump(obj, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+}
+
+function gv(id) { return document.getElementById(id)?.value || ''; }
+
+// --- YAML → Fields ---
+function yamlToFields(data) {
+    const c = data.contact || {};
+    const m = data.meta || {};
+
+    let html = '';
+
+    // Basic
+    html += section('Basic', `
+        ${field('Name', 'text', 'f-name', data.name || '')}
+        ${field('Headline', 'text', 'f-headline', data.headline || '')}
+    `);
+
+    // Contact
+    html += section('Contact', `
+        ${field('Email', 'text', 'f-email', c.email || '')}
+        ${field('Location', 'text', 'f-location', c.location || '')}
+        ${field('LinkedIn', 'text', 'f-linkedin', c.linkedin || '')}
+        ${field('GitHub', 'text', 'f-github', c.github || '')}
+    `);
+
+    // Meta
+    html += section('Meta', `
+        ${field('Photo path', 'text', 'f-photo', m.photo || '')}
+        <label class="field-label">Lang</label>
+        <select id="f-lang" class="field-input">
+            <option value="es" ${m.lang === 'es' ? 'selected' : ''}>ES</option>
+            <option value="en" ${m.lang === 'en' ? 'selected' : ''}>EN</option>
+        </select>
+    `);
+
+    // Summary
+    html += section('Summary', `
+        <label class="field-label">Summary</label>
+        <textarea id="f-summary" rows="4">${esc(data.summary || '')}</textarea>
+    `);
+
+    // Experience
+    const expItems = (data.experience || []).map(expCard).join('');
+    html += section('Experience', `
+        <div id="exp-list">${expItems}</div>
+        <button type="button" class="add-btn" onclick="addExp()">+ Add experience</button>
+    `);
+
+    // Education
+    const eduItems = (data.education || []).map(eduCard).join('');
+    html += section('Education', `
+        <div id="edu-list">${eduItems}</div>
+        <button type="button" class="add-btn" onclick="addEdu()">+ Add education</button>
+    `);
+
+    // Skills
+    const skillItems = (data.skills || []).map(skillCard).join('');
+    html += section('Skills', `
+        <div id="skill-list">${skillItems}</div>
+        <button type="button" class="add-btn" onclick="addSkill()">+ Add skill</button>
+    `);
+
+    // Languages
+    const langItems = (data.languages || []).map(langCard).join('');
+    html += section('Languages', `
+        <div id="lang-list">${langItems}</div>
+        <button type="button" class="add-btn" onclick="addLang()">+ Add language</button>
+    `);
+
+    // Certifications
+    const certItems = (data.certifications || []).map(certInput).join('');
+    html += section('Certifications', `
+        <div id="cert-list">${certItems}</div>
+        <button type="button" class="add-btn" onclick="addCert()">+ Add certification</button>
+    `);
+
+    fieldsView.innerHTML = html;
+    fieldsView.querySelectorAll('input, textarea, select').forEach(el => {
+        el.addEventListener('input', onFieldInput);
+    });
+}
+
+function onFieldInput() {
+    yamlEl.value = fieldsToYaml();
+    schedulePreview();
+}
+
+// --- HTML helpers ---
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function section(title, inner) {
+    return `<div class="section"><div class="section-title">${title}</div>${inner}</div>`;
+}
+
+function field(label, type, id, value) {
+    return `<label class="field-label">${label}</label><input type="${type}" id="${id}" value="${escAttr(value)}">`;
+}
+
+function expCard(e) {
+    e = e || {};
+    const bullets = (e.bullets || []).join('\n');
+    return `<div class="repeatable-item exp-item">
+        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${field('Title', 'text', '', e.title || '').replace(/ id=""/, ' class="exp-title"')}
+        ${field('Company', 'text', '', e.company || '').replace(/ id=""/, ' class="exp-company"')}
+        ${field('Location', 'text', '', e.location || '').replace(/ id=""/, ' class="exp-location"')}
+        ${field('Dates', 'text', '', e.dates || '').replace(/ id=""/, ' class="exp-dates"')}
+        <label class="field-label">Description</label>
+        <textarea class="exp-desc" rows="2">${esc(e.description || '')}</textarea>
+        <label class="field-label">Bullets (one per line)</label>
+        <textarea class="exp-bullets" rows="3">${esc(bullets)}</textarea>
+    </div>`;
+}
+
+function eduCard(e) {
+    e = e || {};
+    return `<div class="repeatable-item edu-item">
+        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${field('Institution', 'text', '', e.institution || '').replace(/ id=""/, ' class="edu-inst"')}
+        ${field('Degree', 'text', '', e.degree || '').replace(/ id=""/, ' class="edu-degree"')}
+        ${field('Dates', 'text', '', e.dates || '').replace(/ id=""/, ' class="edu-dates"')}
+    </div>`;
+}
+
+function skillCard(e) {
+    e = e || {};
+    return `<div class="repeatable-item skill-item">
+        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${field('Category', 'text', '', e.category || '').replace(/ id=""/, ' class="skill-cat"')}
+        ${field('Entries', 'text', '', e.entries || '').replace(/ id=""/, ' class="skill-entries"')}
+    </div>`;
+}
+
+function langCard(e) {
+    e = e || {};
+    return `<div class="repeatable-item lang-item">
+        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${field('Name', 'text', '', e.name || '').replace(/ id=""/, ' class="lang-name"')}
+        ${field('Level', 'text', '', e.level || '').replace(/ id=""/, ' class="lang-level"')}
+    </div>`;
+}
+
+function certInput(val) {
+    return `<div class="repeatable-item" style="padding:8px 14px;">
+        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        <input type="text" class="cert-input" value="${escAttr(val || '')}">
+    </div>`;
+}
+
+// --- Add buttons ---
+function addRepeatable(listId, cardFn) {
+    const list = document.getElementById(listId);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cardFn({});
+    const item = tmp.firstElementChild;
+    list.appendChild(item);
+    item.querySelectorAll('input, textarea, select').forEach(el => {
+        el.addEventListener('input', onFieldInput);
+    });
+    item.querySelector('input, textarea')?.focus();
+}
+
+function addExp() { addRepeatable('exp-list', expCard); }
+function addEdu() { addRepeatable('edu-list', eduCard); }
+function addSkill() { addRepeatable('skill-list', skillCard); }
+function addLang() { addRepeatable('lang-list', langCard); }
+function addCert() { addRepeatable('cert-list', certInput); }
 
 // Load YAML on start
 fetch('/api/yaml')
@@ -144,7 +484,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         await fetch('/api/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ yaml: yamlEl.value }),
+            body: JSON.stringify({ yaml: getPayload().yaml }),
         });
         flash('Saved!');
     } catch (e) {
