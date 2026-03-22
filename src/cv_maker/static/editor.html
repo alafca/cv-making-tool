@@ -235,8 +235,8 @@ function fieldsToYaml() {
     obj.contact = {
         email: gv('f-email'),
         location: gv('f-location'),
-        linkedin: gv('f-linkedin'),
-        github: gv('f-github'),
+        linkedin: { text: gv('f-linkedin-text'), url: gv('f-linkedin-url') },
+        github: { text: gv('f-github-text'), url: gv('f-github-url') },
     };
 
     obj.meta = {
@@ -315,11 +315,15 @@ function yamlToFields(data) {
     `);
 
     // Contact
+    const li = (typeof c.linkedin === 'object' && c.linkedin) ? c.linkedin : { text: c.linkedin || '', url: c.linkedin ? 'https://linkedin.com/in/' + c.linkedin : '' };
+    const gh = (typeof c.github === 'object' && c.github) ? c.github : { text: c.github || '', url: c.github ? 'https://github.com/' + c.github : '' };
     html += section('Contact', `
         ${field('Email', 'text', 'f-email', c.email || '')}
         ${field('Location', 'text', 'f-location', c.location || '')}
-        ${field('LinkedIn', 'text', 'f-linkedin', c.linkedin || '')}
-        ${field('GitHub', 'text', 'f-github', c.github || '')}
+        ${field('LinkedIn text', 'text', 'f-linkedin-text', li.text || '')}
+        ${field('LinkedIn URL', 'text', 'f-linkedin-url', li.url || '')}
+        ${field('GitHub text', 'text', 'f-github-text', gh.text || '')}
+        ${field('GitHub URL', 'text', 'f-github-url', gh.url || '')}
     `);
 
     // Meta

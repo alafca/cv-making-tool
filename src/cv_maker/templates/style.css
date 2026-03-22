@@ -74,6 +74,14 @@ a {
     color: #444;
 }
 
+.contact-icon {
+    width: 10px;
+    height: 10px;
+    vertical-align: middle;
+    margin-right: 2px;
+    display: inline-block;
+}
+
 /* Sections */
 h2 {
     font-size: 13pt;
