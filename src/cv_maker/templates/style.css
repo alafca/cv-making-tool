@@ -21,7 +21,12 @@ body {
 }
 
 a {
-    color: #222;
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.contact-line a,
+.header a {
     text-decoration: none;
 }
 
