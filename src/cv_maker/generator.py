@@ -1,9 +1,11 @@
 import base64
 import io
+import re
 from pathlib import Path
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from markupsafe import Markup, escape
 from PIL import Image
 from weasyprint import HTML
 
@@ -12,6 +14,15 @@ from cv_maker.i18n import get_headers
 PHOTO_SIZE = 160  # px (renders at 80px on 2x density)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+
+
+def linkify(text):
+    """Convert [text](url) to <a> tags, escaping everything else."""
+    escaped = str(escape(text))
+    result = _LINK_RE.sub(r'<a href="\2">\1</a>', escaped)
+    return Markup(result)
 
 
 def load_data(yaml_path: Path) -> dict:
@@ -44,6 +55,7 @@ def render_html(
 ) -> str:
     headers = get_headers(lang)
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
+    env.filters['linkify'] = linkify
     template = env.get_template("cv.html")
     css = (TEMPLATES_DIR / "style.css").read_text(encoding="utf-8")
 

@@ -115,6 +115,10 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     font-size: 12px; font-weight: 600;
 }
 .add-btn:hover { background: #c8e6c9; }
+.link-hint {
+    font-size: 11px; color: #888; padding: 6px 16px 0; background: #fafafa;
+}
+.link-hint code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -141,6 +145,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 <div class="main">
     <div class="editor-pane">
         <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
+        <div class="link-hint" id="linkHint">Links: use <code>[text](url)</code> in descriptions and bullets</div>
         <div id="fieldsView"></div>
     </div>
     <div class="splitter" id="splitter"></div>
@@ -214,12 +219,14 @@ function toggleView(mode) {
         }
         yamlEl.style.display = 'none';
         fieldsView.style.display = 'block';
+        document.getElementById('linkHint').style.display = '';
         btnFields.classList.add('active');
         btnYaml.classList.remove('active');
     } else {
         yamlEl.value = fieldsToYaml();
         yamlEl.style.display = '';
         fieldsView.style.display = 'none';
+        document.getElementById('linkHint').style.display = 'none';
         btnYaml.classList.add('active');
         btnFields.classList.remove('active');
     }

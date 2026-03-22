@@ -32,7 +32,7 @@
     {% if data.summary %}
     <section class="summary">
         <h2>{{ headers.summary }}</h2>
-        <p>{{ data.summary }}</p>
+        <p>{{ data.summary | linkify }}</p>
     </section>
     {% endif %}
 
@@ -47,12 +47,12 @@
             </div>
             <div class="entry-subtitle">{{ job.company }}{% if job.location %}, {{ job.location }}{% endif %}</div>
             {% if job.description %}
-            <div class="entry-description">{{ job.description }}</div>
+            <div class="entry-description">{{ job.description | linkify }}</div>
             {% endif %}
             {% if job.bullets %}
             <ul>
                 {% for bullet in job.bullets %}
-                <li>{{ bullet }}</li>
+                <li>{{ bullet | linkify }}</li>
                 {% endfor %}
             </ul>
             {% endif %}
@@ -81,7 +81,7 @@
         <h2>{{ headers.skills }}</h2>
         <ul class="skills-list">
             {% for skill in data.skills %}
-            <li><span class="skill-category">{{ skill.category }}:</span> {{ skill.entries }}</li>
+            <li><span class="skill-category">{{ skill.category }}:</span> {{ skill.entries | linkify }}</li>
             {% endfor %}
         </ul>
     </section>
@@ -103,7 +103,7 @@
         <h2>{{ headers.certifications }}</h2>
         <ul class="languages-list">
             {% for cert in data.certifications %}
-            <li>{{ cert }}</li>
+            <li>{{ cert | linkify }}</li>
             {% endfor %}
         </ul>
     </section>
