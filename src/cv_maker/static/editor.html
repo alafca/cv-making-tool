@@ -102,12 +102,17 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 5px;
     padding: 12px 14px; margin-top: 8px; position: relative;
 }
-.repeatable-item .remove-btn {
-    position: absolute; top: 8px; right: 8px; background: #ff5252; color: #fff;
-    border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 14px;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    line-height: 1; padding: 0;
+.repeatable-item .item-actions {
+    position: absolute; top: 6px; right: 8px; display: flex; gap: 4px;
 }
+.repeatable-item .move-btn, .repeatable-item .remove-btn {
+    background: #e0e0e0; color: #555; border: none; border-radius: 50%;
+    width: 22px; height: 22px; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0; transition: background .15s;
+}
+.repeatable-item .move-btn:hover { background: #bbb; }
+.repeatable-item .remove-btn { background: #ff5252; color: #fff; }
 .repeatable-item .remove-btn:hover { background: #d32f2f; }
 .add-btn {
     margin-top: 8px; padding: 5px 14px; background: #e8f5e9; color: #2e7d32;
@@ -407,11 +412,28 @@ function field(label, type, id, value) {
     return `<label class="field-label">${label}</label><input type="${type}" id="${id}" value="${escAttr(value)}">`;
 }
 
+function itemActions() {
+    return `<div class="item-actions">
+        <button type="button" class="move-btn" onclick="moveItem(this,-1)" title="Move up">&#9650;</button>
+        <button type="button" class="move-btn" onclick="moveItem(this,1)" title="Move down">&#9660;</button>
+        <button type="button" class="remove-btn" onclick="this.closest('.repeatable-item').remove(); onFieldInput();">&times;</button>
+    </div>`;
+}
+
+function moveItem(btn, dir) {
+    const item = btn.closest('.repeatable-item');
+    const sibling = dir === -1 ? item.previousElementSibling : item.nextElementSibling;
+    if (!sibling || !sibling.classList.contains('repeatable-item')) return;
+    if (dir === -1) item.parentElement.insertBefore(item, sibling);
+    else item.parentElement.insertBefore(sibling, item);
+    onFieldInput();
+}
+
 function expCard(e) {
     e = e || {};
     const bullets = (e.bullets || []).join('\n');
     return `<div class="repeatable-item exp-item">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${itemActions()}
         ${field('Title', 'text', '', e.title || '').replace(/ id=""/, ' class="exp-title"')}
         ${field('Company', 'text', '', e.company || '').replace(/ id=""/, ' class="exp-company"')}
         ${field('Location', 'text', '', e.location || '').replace(/ id=""/, ' class="exp-location"')}
@@ -426,7 +448,7 @@ function expCard(e) {
 function eduCard(e) {
     e = e || {};
     return `<div class="repeatable-item edu-item">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${itemActions()}
         ${field('Institution', 'text', '', e.institution || '').replace(/ id=""/, ' class="edu-inst"')}
         ${field('Degree', 'text', '', e.degree || '').replace(/ id=""/, ' class="edu-degree"')}
         ${field('Dates', 'text', '', e.dates || '').replace(/ id=""/, ' class="edu-dates"')}
@@ -436,7 +458,7 @@ function eduCard(e) {
 function skillCard(e) {
     e = e || {};
     return `<div class="repeatable-item skill-item">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${itemActions()}
         ${field('Category', 'text', '', e.category || '').replace(/ id=""/, ' class="skill-cat"')}
         ${field('Entries', 'text', '', e.entries || '').replace(/ id=""/, ' class="skill-entries"')}
     </div>`;
@@ -445,7 +467,7 @@ function skillCard(e) {
 function langCard(e) {
     e = e || {};
     return `<div class="repeatable-item lang-item">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${itemActions()}
         ${field('Name', 'text', '', e.name || '').replace(/ id=""/, ' class="lang-name"')}
         ${field('Level', 'text', '', e.level || '').replace(/ id=""/, ' class="lang-level"')}
     </div>`;
@@ -453,7 +475,7 @@ function langCard(e) {
 
 function certInput(val) {
     return `<div class="repeatable-item" style="padding:8px 14px;">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); onFieldInput();">&times;</button>
+        ${itemActions()}
         <input type="text" class="cert-input" value="${escAttr(val || '')}">
     </div>`;
 }
