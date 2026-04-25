@@ -124,6 +124,11 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     font-size: 11px; color: #888; padding: 6px 16px 0; background: #fafafa;
 }
 .link-hint code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+@keyframes fieldFlash {
+    0% { box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.6); }
+    100% { box-shadow: 0 0 0 3px rgba(76, 175, 80, 0); }
+}
+.field-flash { animation: fieldFlash 1.2s ease-out; }
 </style>
 </head>
 <body>
@@ -204,7 +209,7 @@ async function refreshPreview() {
         });
         const html = await res.text();
         previewEl.srcdoc = html;
-        previewEl.onload = fitPreview;
+        previewEl.onload = () => { fitPreview(); attachPreviewClicks(); };
     } catch (e) {
         flash('Preview error: ' + e.message, true);
     }
@@ -639,6 +644,65 @@ function fitPreview() {
     iframe.style.marginBottom = (actualH * (scale - 1)) + 'px';
 }
 window.addEventListener('resize', fitPreview);
+
+// --- Click-to-edit: clicking preview elements jumps to editor field ---
+const REPEATABLE_MAP = {
+    experience: { selector: '.exp-item', fields: { title: '.exp-title', company: '.exp-company', location: '.exp-location', dates: '.exp-dates', description: '.exp-desc', bullets: '.exp-bullets' } },
+    education: { selector: '.edu-item', fields: { institution: '.edu-inst', degree: '.edu-degree', dates: '.edu-dates' } },
+    skills: { selector: '.skill-item', fields: { category: '.skill-cat', entries: '.skill-entries' } },
+    languages: { selector: '.lang-item', fields: { name: '.lang-name', level: '.lang-level' } },
+};
+const SIMPLE_MAP = {
+    name: 'f-name', headline: 'f-headline',
+    email: 'f-email', location: 'f-location',
+    linkedin: 'f-linkedin-text', github: 'f-github-text',
+    summary: 'f-summary',
+};
+
+function resolveFieldByPath(path) {
+    if (SIMPLE_MAP[path]) return document.getElementById(SIMPLE_MAP[path]);
+
+    if (path.startsWith('certifications.')) {
+        const idx = parseInt(path.split('.')[1], 10);
+        return fieldsView.querySelectorAll('.cert-input')[idx] || null;
+    }
+
+    const parts = path.split('.');
+    if (parts.length >= 3) {
+        const [kind, idxStr, field] = parts;
+        const cfg = REPEATABLE_MAP[kind];
+        if (!cfg) return null;
+        const item = fieldsView.querySelectorAll(cfg.selector)[parseInt(idxStr, 10)];
+        if (!item) return null;
+        return item.querySelector(cfg.fields[field]) || item.querySelector('input, textarea');
+    }
+    return null;
+}
+
+function focusEditorField(path) {
+    if (currentView !== 'fields') toggleView('fields');
+    const target = resolveFieldByPath(path);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.focus();
+    if (target.select) target.select();
+    target.classList.remove('field-flash');
+    void target.offsetWidth; // restart animation
+    target.classList.add('field-flash');
+}
+
+function attachPreviewClicks() {
+    const doc = previewEl.contentDocument;
+    if (!doc) return;
+    doc.querySelectorAll('[data-edit]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            // Allow real link clicks (anchor tags) to still navigate
+            if (e.target.closest('a')) return;
+            e.preventDefault();
+            focusEditorField(el.getAttribute('data-edit'));
+        });
+    });
+}
 </script>
 </body>
 </html>

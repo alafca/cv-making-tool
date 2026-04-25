@@ -87,6 +87,11 @@ a {
     display: inline-block;
 }
 
+@media screen {
+    [data-edit] { cursor: pointer; transition: background 0.15s; }
+    [data-edit]:hover { background: rgba(255, 230, 120, 0.45); }
+}
+
 /* Sections */
 h2 {
     font-size: 13pt;
