@@ -21,19 +21,27 @@ class PreviewRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     yaml: str
+    lang: str = "es"
 
 
 def create_app(yaml_path: Path) -> FastAPI:
     app = FastAPI()
     yaml_path = yaml_path.resolve()
 
+    def path_for_lang(lang: str) -> Path:
+        candidate = yaml_path.with_name(
+            f"{yaml_path.stem}_{lang}{yaml_path.suffix}"
+        )
+        return candidate if candidate.exists() else yaml_path
+
     @app.get("/", response_class=HTMLResponse)
     def editor_page():
         return FileResponse(STATIC_DIR / "editor.html", media_type="text/html")
 
     @app.get("/api/yaml")
-    def read_yaml():
-        text = yaml_path.read_text(encoding="utf-8")
+    def read_yaml(lang: str = "es"):
+        path = path_for_lang(lang)
+        text = path.read_text(encoding="utf-8")
         return {"yaml": text}
 
     @app.post("/api/preview", response_class=HTMLResponse)
@@ -59,7 +67,8 @@ def create_app(yaml_path: Path) -> FastAPI:
 
     @app.post("/api/save")
     def save_yaml(req: SaveRequest):
-        yaml_path.write_text(req.yaml, encoding="utf-8")
+        path = path_for_lang(req.lang)
+        path.write_text(req.yaml, encoding="utf-8")
         return {"ok": True}
 
     @app.post("/api/pdf")

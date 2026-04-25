@@ -504,19 +504,33 @@ function addSkill() { addRepeatable('skill-list', skillCard); }
 function addLang() { addRepeatable('lang-list', langCard); }
 function addCert() { addRepeatable('cert-list', certInput); }
 
+async function loadYaml(lang) {
+    const res = await fetch('/api/yaml?lang=' + encodeURIComponent(lang));
+    const d = await res.json();
+    yamlEl.value = d.yaml;
+    if (currentView === 'fields') {
+        try {
+            const data = jsyaml.load(yamlEl.value) || {};
+            yamlToFields(data);
+        } catch (e) {
+            flash('Invalid YAML: ' + e.message, true);
+        }
+    }
+    refreshPreview();
+}
+
 // Load YAML on start
-fetch('/api/yaml')
-    .then(r => r.json())
-    .then(d => {
-        yamlEl.value = d.yaml;
-        currentView = 'yaml'; // allow toggleView to switch to fields
-        toggleView('fields');
-        refreshPreview();
+loadYaml(langEl.value)
+    .then(() => {
+        if (currentView !== 'fields') {
+            currentView = 'yaml';
+            toggleView('fields');
+        }
     })
     .catch(e => flash('Load error: ' + e.message, true));
 
 yamlEl.addEventListener('input', schedulePreview);
-langEl.addEventListener('change', refreshPreview);
+langEl.addEventListener('change', () => loadYaml(langEl.value));
 colorEl.addEventListener('input', refreshPreview);
 photoEl.addEventListener('change', refreshPreview);
 
@@ -537,7 +551,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         await fetch('/api/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ yaml: getPayload().yaml }),
+            body: JSON.stringify({ yaml: getPayload().yaml, lang: langEl.value }),
         });
         flash('Saved!');
     } catch (e) {
