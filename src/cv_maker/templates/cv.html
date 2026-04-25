@@ -40,19 +40,20 @@
     <section>
         <h2>{{ headers.experience }}</h2>
         {% for job in data.experience %}
+        {% set job_idx = loop.index0 %}
         <div class="entry">
             <div class="entry-header">
-                <span class="entry-title" data-edit="experience.{{ loop.index0 }}.title">{{ job.title }}</span>
-                <span class="entry-dates" data-edit="experience.{{ loop.index0 }}.dates">{{ job.dates }}</span>
+                <span class="entry-title" data-edit="experience.{{ job_idx }}.title">{{ job.title }}</span>
+                <span class="entry-dates" data-edit="experience.{{ job_idx }}.dates">{{ job.dates }}</span>
             </div>
-            <div class="entry-subtitle"><span data-edit="experience.{{ loop.index0 }}.company">{{ job.company }}</span>{% if job.location %}, <span data-edit="experience.{{ loop.index0 }}.location">{{ job.location }}</span>{% endif %}</div>
+            <div class="entry-subtitle"><span data-edit="experience.{{ job_idx }}.company">{{ job.company }}</span>{% if job.location %}, <span data-edit="experience.{{ job_idx }}.location">{{ job.location }}</span>{% endif %}</div>
             {% if job.description %}
-            <div class="entry-description" data-edit="experience.{{ loop.index0 }}.description">{{ job.description | linkify }}</div>
+            <div class="entry-description" data-edit="experience.{{ job_idx }}.description">{{ job.description | linkify }}</div>
             {% endif %}
             {% if job.bullets %}
             <ul>
                 {% for bullet in job.bullets %}
-                <li data-edit="experience.{{ loop.index0 }}.bullets">{{ bullet | linkify }}</li>
+                <li data-edit="experience.{{ job_idx }}.bullets">{{ bullet | linkify }}</li>
                 {% endfor %}
             </ul>
             {% endif %}
