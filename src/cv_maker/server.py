@@ -78,10 +78,15 @@ def create_app(yaml_path: Path, default_lang: str = "es") -> FastAPI:
     @app.post("/api/preview", response_class=HTMLResponse)
     def preview(req: PreviewRequest):
         try:
-            return HTMLResponse(render_or_raise(req))
+            html_str = render_or_raise(req)
         except HTTPException as exc:
             # Show the problem inside the preview pane instead of failing the request.
             return _error_page(str(exc.detail))
+        try:
+            page_count = len(HTML(string=html_str).render().pages)
+        except Exception:
+            page_count = 0
+        return HTMLResponse(html_str, headers={"X-Page-Count": str(page_count)})
 
     @app.post("/api/save")
     def save_yaml(req: SaveRequest):
@@ -93,6 +98,11 @@ def create_app(yaml_path: Path, default_lang: str = "es") -> FastAPI:
             # new language never overwrites the base data file.
             path = yaml_path.with_name(
                 f"{yaml_path.stem}_{req.lang}{yaml_path.suffix}"
+            )
+        if path.exists():
+            # Keep the previous version so one bad save is always reversible.
+            path.with_name(path.name + ".bak").write_text(
+                path.read_text(encoding="utf-8"), encoding="utf-8"
             )
         path.write_text(req.yaml, encoding="utf-8")
         return {"ok": True, "path": str(path)}

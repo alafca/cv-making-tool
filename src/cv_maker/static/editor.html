@@ -28,6 +28,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-pdf { background: #2196f3; color: #fff; }
 .btn-html { background: #ff9800; color: #fff; }
 .status { font-size: 12px; color: #aaa; margin-left: 8px; }
+.page-count { font-size: 12px; font-weight: 600; margin-right: 8px; }
 
 /* Toggle buttons */
 .view-toggle { display: flex; gap: 0; margin-left: 8px; }
@@ -147,6 +148,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
         <button id="btnYaml" onclick="toggleView('yaml')">YAML</button>
     </div>
     <span class="spacer"></span>
+    <span class="page-count" id="pageCount" title="Pages in the generated PDF"></span>
     <button class="btn-save" id="saveBtn">Save</button>
     <button class="btn-pdf" id="pdfBtn">Download PDF</button>
     <button class="btn-html" id="htmlBtn">Export HTML</button>
@@ -222,9 +224,18 @@ async function refreshPreview() {
         const html = await res.text();
         if (seq !== previewSeq) return; // a newer request is in flight
         previewEl.srcdoc = html;
+        updatePageCount(res.headers.get('X-Page-Count'));
     } catch (e) {
         flash('Preview error: ' + e.message, true);
     }
+}
+
+const pageCountEl = document.getElementById('pageCount');
+function updatePageCount(value) {
+    const n = parseInt(value, 10);
+    if (!n) { pageCountEl.textContent = ''; return; }
+    pageCountEl.textContent = n === 1 ? '1 page' : n + ' pages';
+    pageCountEl.style.color = n === 1 ? '#81c784' : '#ffb74d';
 }
 
 // --- Toggle View ---
@@ -588,6 +599,13 @@ photoEl.addEventListener('change', refreshPreview);
 window.addEventListener('beforeunload', (e) => {
     if (dirty) e.preventDefault();
 });
+function saveShortcut(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        document.getElementById('saveBtn').click();
+    }
+}
+window.addEventListener('keydown', saveShortcut);
 
 // Tab key inserts spaces in textarea
 yamlEl.addEventListener('keydown', (e) => {
@@ -768,6 +786,8 @@ function focusEditorField(path) {
 function attachPreviewClicks() {
     const doc = previewEl.contentDocument;
     if (!doc) return;
+    doc.addEventListener('keydown', saveShortcut); // Ctrl+S works with preview focused too
+
     doc.querySelectorAll('[data-edit]').forEach(el => {
         el.addEventListener('click', (e) => {
             // Allow real link clicks (anchor tags) to still navigate
