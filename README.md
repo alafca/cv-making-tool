@@ -18,4 +18,8 @@ Use `--port` to change the default port:
 python -m uv run python -m cv_maker --serve --port 3000
 ```
 
-uv run python -m cv_maker --serve
+## Tests
+
+```bash
+uv run pytest
+```

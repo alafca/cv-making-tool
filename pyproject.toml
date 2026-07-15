@@ -12,6 +12,12 @@ dependencies = [
     "pillow",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+]
+
 [project.scripts]
 cv-maker = "cv_maker.cli:main"
 
