@@ -19,4 +19,4 @@ HEADERS = {
 
 
 def get_headers(lang: str) -> dict[str, str]:
-    return HEADERS[lang]
+    return HEADERS.get(lang, HEADERS["en"])

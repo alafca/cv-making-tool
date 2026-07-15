@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CV Maker - Editor</title>
-<script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
+<script src="/static/js-yaml.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; }
@@ -174,7 +174,15 @@ const fieldsView = document.getElementById('fieldsView');
 const btnYaml = document.getElementById('btnYaml');
 const btnFields = document.getElementById('btnFields');
 
-let currentView = 'fields';
+// The textarea is the visible pane on first paint, so start in 'yaml' and
+// switch to fields after the initial load. Keeping this in sync with the DOM
+// matters: getPayload() overwrites the textarea from the fields when
+// currentView is 'fields'.
+let currentView = 'yaml';
+let dirty = false;
+let loadedLang = null;
+
+function markDirty() { dirty = true; }
 
 function flash(msg, err) {
     statusEl.textContent = msg;
@@ -200,7 +208,11 @@ function schedulePreview() {
     debounceTimer = setTimeout(refreshPreview, 500);
 }
 
+let previewSeq = 0;
+previewEl.onload = () => { fitPreview(); attachPreviewClicks(); };
+
 async function refreshPreview() {
+    const seq = ++previewSeq;
     try {
         const res = await fetch('/api/preview', {
             method: 'POST',
@@ -208,8 +220,8 @@ async function refreshPreview() {
             body: JSON.stringify(getPayload()),
         });
         const html = await res.text();
+        if (seq !== previewSeq) return; // a newer request is in flight
         previewEl.srcdoc = html;
-        previewEl.onload = () => { fitPreview(); attachPreviewClicks(); };
     } catch (e) {
         flash('Preview error: ' + e.message, true);
     }
@@ -313,7 +325,26 @@ function fieldsToYaml() {
     });
     obj.certifications = certs;
 
-    return jsyaml.dump(obj, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+    return jsyaml.dump(prune(obj) || {}, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+}
+
+// Drop empty strings, arrays and objects recursively so blanks (e.g. an unused
+// LinkedIn text/url pair) don't end up in the YAML and render in the CV.
+function prune(v) {
+    if (Array.isArray(v)) {
+        const arr = v.map(prune).filter(x => x !== undefined);
+        return arr.length ? arr : undefined;
+    }
+    if (v && typeof v === 'object') {
+        const out = {};
+        for (const [k, val] of Object.entries(v)) {
+            const p = prune(val);
+            if (p !== undefined) out[k] = p;
+        }
+        return Object.keys(out).length ? out : undefined;
+    }
+    if (typeof v === 'string' && v.trim() === '') return undefined;
+    return v;
 }
 
 function gv(id) { return document.getElementById(id)?.value || ''; }
@@ -402,6 +433,7 @@ function yamlToFields(data) {
 
 function onFieldInput() {
     yamlEl.value = fieldsToYaml();
+    markDirty();
     schedulePreview();
 }
 
@@ -496,6 +528,7 @@ function addRepeatable(listId, cardFn) {
         el.addEventListener('input', onFieldInput);
     });
     item.querySelector('input, textarea')?.focus();
+    onFieldInput();
 }
 
 function addExp() { addRepeatable('exp-list', expCard); }
@@ -506,8 +539,11 @@ function addCert() { addRepeatable('cert-list', certInput); }
 
 async function loadYaml(lang) {
     const res = await fetch('/api/yaml?lang=' + encodeURIComponent(lang));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
     yamlEl.value = d.yaml;
+    dirty = false;
+    loadedLang = lang;
     if (currentView === 'fields') {
         try {
             const data = jsyaml.load(yamlEl.value) || {};
@@ -519,20 +555,39 @@ async function loadYaml(lang) {
     refreshPreview();
 }
 
-// Load YAML on start
-loadYaml(langEl.value)
-    .then(() => {
-        if (currentView !== 'fields') {
-            currentView = 'yaml';
-            toggleView('fields');
+// Load config + YAML on start, then switch to the fields view.
+(async () => {
+    try {
+        const cfg = await fetch('/api/config').then(r => r.json());
+        if ([...langEl.options].some(o => o.value === cfg.default_lang)) {
+            langEl.value = cfg.default_lang;
         }
-    })
-    .catch(e => flash('Load error: ' + e.message, true));
+    } catch (e) { /* keep the select's default */ }
+    try {
+        await loadYaml(langEl.value);
+        toggleView('fields');
+    } catch (e) {
+        flash('Load error: ' + e.message, true);
+    }
+})();
 
-yamlEl.addEventListener('input', schedulePreview);
-langEl.addEventListener('change', () => loadYaml(langEl.value));
-colorEl.addEventListener('input', refreshPreview);
+yamlEl.addEventListener('input', () => { markDirty(); schedulePreview(); });
+langEl.addEventListener('change', async () => {
+    if (dirty && !confirm('You have unsaved changes. Discard them and switch language?')) {
+        if (loadedLang) langEl.value = loadedLang;
+        return;
+    }
+    try {
+        await loadYaml(langEl.value);
+    } catch (e) {
+        flash('Load error: ' + e.message, true);
+    }
+});
+colorEl.addEventListener('input', schedulePreview);
 photoEl.addEventListener('change', refreshPreview);
+window.addEventListener('beforeunload', (e) => {
+    if (dirty) e.preventDefault();
+});
 
 // Tab key inserts spaces in textarea
 yamlEl.addEventListener('keydown', (e) => {
@@ -542,17 +597,44 @@ yamlEl.addEventListener('keydown', (e) => {
         const end = yamlEl.selectionEnd;
         yamlEl.value = yamlEl.value.substring(0, start) + '  ' + yamlEl.value.substring(end);
         yamlEl.selectionStart = yamlEl.selectionEnd = start + 2;
+        markDirty();
         schedulePreview();
     }
 });
 
+async function errorDetail(res) {
+    try {
+        const d = await res.json();
+        return d.detail || ('HTTP ' + res.status);
+    } catch (e) {
+        return 'HTTP ' + res.status;
+    }
+}
+
+async function downloadFrom(endpoint, filename) {
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getPayload()),
+    });
+    if (!res.ok) throw new Error(await errorDetail(res));
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
 document.getElementById('saveBtn').addEventListener('click', async () => {
     try {
-        await fetch('/api/save', {
+        const res = await fetch('/api/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ yaml: getPayload().yaml, lang: langEl.value }),
         });
+        if (!res.ok) throw new Error(await errorDetail(res));
+        dirty = false;
         flash('Saved!');
     } catch (e) {
         flash('Save error: ' + e.message, true);
@@ -562,18 +644,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 document.getElementById('pdfBtn').addEventListener('click', async () => {
     flash('Generating PDF...');
     try {
-        const res = await fetch('/api/pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(getPayload()),
-        });
-        if (!res.ok) throw new Error('Server error');
-        const blob = await res.blob();
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'cv.pdf';
-        a.click();
-        URL.revokeObjectURL(a.href);
+        await downloadFrom('/api/pdf', 'cv.pdf');
         flash('PDF downloaded!');
     } catch (e) {
         flash('PDF error: ' + e.message, true);
@@ -582,18 +653,7 @@ document.getElementById('pdfBtn').addEventListener('click', async () => {
 
 document.getElementById('htmlBtn').addEventListener('click', async () => {
     try {
-        const res = await fetch('/api/export-html', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(getPayload()),
-        });
-        if (!res.ok) throw new Error('Server error');
-        const blob = await res.blob();
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'cv.html';
-        a.click();
-        URL.revokeObjectURL(a.href);
+        await downloadFrom('/api/export-html', 'cv.html');
         flash('HTML exported!');
     } catch (e) {
         flash('Export error: ' + e.message, true);

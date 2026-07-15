@@ -9,6 +9,7 @@ dependencies = [
     "weasyprint",
     "fastapi",
     "uvicorn",
+    "pillow",
 ]
 
 [project.scripts]

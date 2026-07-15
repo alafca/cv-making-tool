@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from cv_maker.generator import build_cv
+from cv_maker.generator import build_cv, data_path_for_lang
 
 
 def main():
@@ -45,6 +45,7 @@ def main():
     if args.serve:
         from cv_maker.server import run_server
 
-        run_server(args.data, port=args.port)
+        run_server(args.data, port=args.port, default_lang=args.lang)
     else:
-        build_cv(args.data, args.output, args.lang, show_photo=not args.no_photo)
+        data_path = data_path_for_lang(args.data, args.lang)
+        build_cv(data_path, args.output, args.lang, show_photo=not args.no_photo)

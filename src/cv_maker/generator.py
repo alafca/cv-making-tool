@@ -33,15 +33,28 @@ def load_data(yaml_path: Path) -> dict:
     return data
 
 
+def data_path_for_lang(yaml_path: Path, lang: str, default_lang: str = "es") -> Path:
+    """Return the language-specific variant (stem_lang.suffix) if it exists."""
+    if lang == default_lang:
+        return yaml_path
+    candidate = yaml_path.with_name(f"{yaml_path.stem}_{lang}{yaml_path.suffix}")
+    return candidate if candidate.exists() else yaml_path
+
+
 def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
     resolved = photo_path if photo_path.is_absolute() else yaml_dir / photo_path
     resolved = resolved.resolve()
     if not resolved.exists():
         return None
-    img = Image.open(resolved)
-    img.thumbnail((PHOTO_SIZE, PHOTO_SIZE))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=85)
+    try:
+        img = Image.open(resolved)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img.thumbnail((PHOTO_SIZE, PHOTO_SIZE))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+    except OSError:
+        return None
     b64 = base64.b64encode(buf.getvalue()).decode()
     return f"data:image/jpeg;base64,{b64}"
 

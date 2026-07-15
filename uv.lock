@@ -244,6 +244,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "jinja2" },
+    { name = "pillow" },
     { name = "pyyaml" },
     { name = "uvicorn" },
     { name = "weasyprint" },
@@ -253,6 +254,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi" },
     { name = "jinja2" },
+    { name = "pillow" },
     { name = "pyyaml" },
     { name = "uvicorn" },
     { name = "weasyprint" },
