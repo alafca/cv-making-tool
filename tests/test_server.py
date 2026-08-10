@@ -9,7 +9,14 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from cv_maker.generator import data_path_for_lang, linkify
+from cv_maker.generator import (
+    cv_file_path,
+    data_path_for_lang,
+    linkify,
+    list_cvs,
+    resolve_cv_path,
+    validate_cv_name,
+)
 from cv_maker.server import create_app
 
 SAMPLE_YAML = """\
@@ -183,3 +190,191 @@ def test_data_path_for_lang(tmp_path):
     en = tmp_path / "cv_en.yaml"
     en.write_text("name: y", encoding="utf-8")
     assert data_path_for_lang(base, "en") == en
+
+
+# --- Multiple CVs -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["acme", "acme-2", "a_b", "X9"])
+def test_validate_cv_name_accepts_safe_names(name):
+    assert validate_cv_name(name, ("es", "en")) == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../escape",
+        "sub/dir",
+        "sub\\dir",
+        "with space",
+        "dot.name",
+        "",
+        "-leading",
+        "acme_en",  # would be indistinguishable from a language variant
+        "acme_es",
+    ],
+)
+def test_validate_cv_name_rejects_unsafe_or_ambiguous(name):
+    with pytest.raises(ValueError):
+        validate_cv_name(name, ("es", "en"))
+
+
+def test_cv_and_resolve_paths(tmp_path):
+    base = cv_file_path(tmp_path, "acme", "es", "es")
+    assert base == tmp_path / "acme.yaml"
+    assert cv_file_path(tmp_path, "acme", "en", "es") == tmp_path / "acme_en.yaml"
+
+    base.write_text("name: x", encoding="utf-8")
+    # No English file yet: fall back to the CV's base file.
+    assert resolve_cv_path(tmp_path, "acme", "en", "es") == base
+    en = tmp_path / "acme_en.yaml"
+    en.write_text("name: y", encoding="utf-8")
+    assert resolve_cv_path(tmp_path, "acme", "en", "es") == en
+
+
+def test_list_cvs_groups_languages_and_skips_strays(tmp_path):
+    for fname in ["cv_data.yaml", "cv_data_en.yaml", "acme.yaml", "only_en.yaml"]:
+        (tmp_path / fname).write_text("name: x", encoding="utf-8")
+    (tmp_path / "not a cv.yaml").write_text("name: x", encoding="utf-8")
+    (tmp_path / "cv_data.yaml.bak").write_text("name: old", encoding="utf-8")
+
+    assert list_cvs(tmp_path, ("es", "en"), "es") == [
+        {"name": "acme", "langs": ["es"]},
+        {"name": "cv_data", "langs": ["en", "es"]},
+        {"name": "only", "langs": ["en"]},
+    ]
+
+
+def test_list_cvs_on_missing_dir(tmp_path):
+    assert list_cvs(tmp_path / "nope", ("es", "en"), "es") == []
+
+
+def test_cvs_endpoint_lists_existing(client):
+    r = client.get("/api/cvs")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["default_cv"] == "cv_data"
+    assert d["cvs"] == [{"name": "cv_data", "langs": ["es"]}]
+
+
+def test_create_cv_writes_starter_file(client, data_dir):
+    r = client.post("/api/cvs", json={"name": "acme"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "acme"
+    assert (data_dir / "acme.yaml").exists()
+    # The starter must be loadable by the editor without further edits.
+    r = client.get("/api/yaml", params={"cv": "acme", "lang": "es"})
+    assert r.status_code == 200
+    assert "Your Name" in r.json()["yaml"]
+
+
+def test_create_cv_duplicates_all_languages(client, data_dir):
+    client.post("/api/save", json={"yaml": "name: English", "lang": "en"})
+    r = client.post("/api/cvs", json={"name": "acme", "copy_from": "cv_data"})
+    assert r.status_code == 200
+    assert r.json()["langs"] == ["en", "es"]
+    assert (data_dir / "acme.yaml").read_text(encoding="utf-8") == SAMPLE_YAML
+    assert (data_dir / "acme_en.yaml").read_text(encoding="utf-8") == "name: English"
+
+
+def test_create_cv_rejects_duplicate_name(client):
+    assert client.post("/api/cvs", json={"name": "cv_data"}).status_code == 409
+
+
+def test_create_cv_rejects_unknown_source(client):
+    r = client.post("/api/cvs", json={"name": "acme", "copy_from": "ghost"})
+    assert r.status_code == 404
+
+
+@pytest.mark.parametrize("name", ["../escape", "sub/dir", "with space", "acme_en"])
+def test_create_cv_rejects_unsafe_names(client, name, data_dir):
+    r = client.post("/api/cvs", json={"name": name})
+    assert r.status_code in (400, 404, 422)
+    assert list(data_dir.glob("*.yaml")) == [data_dir / "cv_data.yaml"]
+
+
+def test_save_and_read_are_scoped_to_the_cv(client, data_dir):
+    client.post("/api/cvs", json={"name": "acme"})
+    r = client.post("/api/save", json={"yaml": "name: Acme Version", "lang": "es", "cv": "acme"})
+    assert r.status_code == 200
+    assert "Acme Version" in (data_dir / "acme.yaml").read_text(encoding="utf-8")
+    # The other CV is untouched.
+    assert (data_dir / "cv_data.yaml").read_text(encoding="utf-8") == SAMPLE_YAML
+    assert "Acme Version" in client.get(
+        "/api/yaml", params={"cv": "acme", "lang": "es"}
+    ).json()["yaml"]
+
+
+def test_save_to_new_cv_lang_creates_suffixed_file(client, data_dir):
+    client.post("/api/cvs", json={"name": "acme"})
+    r = client.post("/api/save", json={"yaml": "name: Acme EN", "lang": "en", "cv": "acme"})
+    assert r.status_code == 200
+    assert (data_dir / "acme_en.yaml").read_text(encoding="utf-8") == "name: Acme EN"
+    assert "Your Name" in (data_dir / "acme.yaml").read_text(encoding="utf-8")
+
+
+def test_read_unknown_cv_returns_404(client):
+    r = client.get("/api/yaml", params={"cv": "ghost", "lang": "es"})
+    assert r.status_code == 404
+
+
+def test_read_rejects_path_traversal(client, tmp_path):
+    secret = tmp_path.parent / "secret.yaml"
+    secret.write_text("name: secret", encoding="utf-8")
+    r = client.get("/api/yaml", params={"cv": "../secret", "lang": "es"})
+    assert r.status_code == 400
+    assert "Invalid CV name" in r.json()["detail"]
+
+
+def test_delete_cv_backs_up_then_removes(client, data_dir):
+    client.post("/api/cvs", json={"name": "acme"})
+    client.post("/api/save", json={"yaml": "name: Acme EN", "lang": "en", "cv": "acme"})
+
+    r = client.delete("/api/cvs/acme")
+    assert r.status_code == 200
+    assert sorted(r.json()["removed"]) == ["acme.yaml", "acme_en.yaml"]
+    assert not (data_dir / "acme.yaml").exists()
+    assert not (data_dir / "acme_en.yaml").exists()
+    # Recoverable: the content is kept alongside.
+    assert (data_dir / "acme_en.yaml.bak").read_text(encoding="utf-8") == "name: Acme EN"
+
+
+def test_delete_refuses_the_startup_cv(client, data_dir):
+    r = client.delete("/api/cvs/cv_data")
+    assert r.status_code == 400
+    assert (data_dir / "cv_data.yaml").exists()
+
+
+def test_delete_unknown_cv_returns_404(client):
+    assert client.delete("/api/cvs/ghost").status_code == 404
+
+
+def test_downloads_are_named_after_the_cv(client):
+    r = client.post("/api/pdf", json={"yaml": SAMPLE_YAML, "lang": "en", "cv": "acme"})
+    assert r.headers["content-disposition"] == "attachment; filename=acme_en.pdf"
+    r = client.post("/api/export-html", json={"yaml": SAMPLE_YAML, "lang": "es"})
+    assert r.headers["content-disposition"] == "attachment; filename=cv_data_es.html"
+
+
+@pytest.mark.parametrize("body", ["name: Minimal", "name: Minimal\nmeta:\n"])
+def test_render_survives_missing_or_empty_meta(client, body):
+    """A hand-written or freshly created CV need not carry a meta: block."""
+    r = client.post("/api/preview", json={"yaml": body, "lang": "en"})
+    assert r.status_code == 200
+    assert "Minimal" in r.text
+    assert "error" not in r.text.lower()
+    assert client.post("/api/pdf", json={"yaml": body, "lang": "en"}).status_code == 200
+
+
+def test_config_reports_cv_defaults(client):
+    d = client.get("/api/config").json()
+    assert d["default_cv"] == "cv_data"
+    assert set(d["langs"]) == {"es", "en"}
+
+
+def test_server_started_on_a_lang_variant_uses_the_base_cv_name(data_dir):
+    from fastapi.testclient import TestClient
+
+    (data_dir / "cv_data_en.yaml").write_text("name: English", encoding="utf-8")
+    c = TestClient(create_app(data_dir / "cv_data_en.yaml", default_lang="es"))
+    assert c.get("/api/config").json()["default_cv"] == "cv_data"

@@ -20,3 +20,8 @@ HEADERS = {
 
 def get_headers(lang: str) -> dict[str, str]:
     return HEADERS.get(lang, HEADERS["en"])
+
+
+def supported_langs() -> tuple[str, ...]:
+    """Languages the tool has section headers for."""
+    return tuple(HEADERS)
