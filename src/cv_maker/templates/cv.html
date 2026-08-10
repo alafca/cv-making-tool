@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ data.meta.lang | default('es') }}">
+<html lang="{{ (data.meta or {}).get('lang', 'es') }}">
 <head>
     <meta charset="UTF-8">
     <title>{{ data.name }} - CV</title>

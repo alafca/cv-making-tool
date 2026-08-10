@@ -1,7 +1,16 @@
 import argparse
+import sys
 from pathlib import Path
 
-from cv_maker.generator import build_cv, data_path_for_lang
+from cv_maker.generator import (
+    build_cv,
+    cv_file_path,
+    data_path_for_lang,
+    list_cvs,
+    resolve_cv_path,
+    validate_cv_name,
+)
+from cv_maker.i18n import supported_langs
 
 
 def main():
@@ -13,10 +22,19 @@ def main():
         help="Path to YAML data file (default: data/cv_data.yaml)",
     )
     parser.add_argument(
+        "--cv",
+        help="Name of the CV to use, e.g. --cv acme picks data/acme.yaml "
+        "(and data/acme_<lang>.yaml). Defaults to the --data file.",
+    )
+    parser.add_argument(
+        "--list-cvs",
+        action="store_true",
+        help="List the CVs found next to the --data file and exit",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
-        default=Path("output/cv.pdf"),
-        help="Output PDF path (default: output/cv.pdf)",
+        help="Output PDF path (default: output/cv.pdf, or output/<cv>.pdf with --cv)",
     )
     parser.add_argument(
         "--lang",
@@ -42,10 +60,43 @@ def main():
     )
     args = parser.parse_args()
 
+    data_dir = args.data.parent
+    suffix = args.data.suffix or ".yaml"
+    known_langs = supported_langs()
+
+    if args.list_cvs:
+        cvs = list_cvs(data_dir, known_langs, "es", suffix)
+        if not cvs:
+            print(f"No CVs found in {data_dir}")
+            return
+        for entry in cvs:
+            print(f"{entry['name']}  [{', '.join(entry['langs'])}]")
+        return
+
+    data_path = args.data
+    if args.cv:
+        try:
+            cv = validate_cv_name(args.cv, known_langs)
+        except ValueError as exc:
+            parser.error(str(exc))
+        data_path = cv_file_path(data_dir, cv, "es", "es", suffix)
+        if not data_path.exists():
+            parser.error(f"No CV named '{cv}' in {data_dir} (expected {data_path})")
+
     if args.serve:
         from cv_maker.server import run_server
 
-        run_server(args.data, port=args.port, default_lang=args.lang)
+        run_server(data_path, port=args.port, default_lang=args.lang)
     else:
-        data_path = data_path_for_lang(args.data, args.lang)
-        build_cv(data_path, args.output, args.lang, show_photo=not args.no_photo)
+        if args.cv:
+            lang_path = resolve_cv_path(data_dir, args.cv, args.lang, "es", suffix)
+        else:
+            lang_path = data_path_for_lang(data_path, args.lang)
+        # Keep the historical output/cv.pdf default; only a named CV gets its
+        # own filename, so tailored versions don't overwrite each other.
+        default_output = Path("output") / (f"{args.cv}.pdf" if args.cv else "cv.pdf")
+        output = args.output or default_output
+        try:
+            build_cv(lang_path, output, args.lang, show_photo=not args.no_photo)
+        except (OSError, ValueError) as exc:
+            sys.exit(f"Error: {exc}")

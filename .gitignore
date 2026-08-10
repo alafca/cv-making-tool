@@ -1,5 +1,6 @@
 /data
 /output/
+.dev/
 __pycache__/
 *.egg-info/
 .venv/

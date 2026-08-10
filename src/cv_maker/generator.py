@@ -1,6 +1,7 @@
 import base64
 import io
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
@@ -16,6 +17,16 @@ PHOTO_SIZE = 160  # px (renders at 80px on 2x density)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 _LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+
+# A "CV" is one tailored version of the resume, identified by the stem of its
+# data file: <name>.yaml holds the default language, <name>_<lang>.yaml the
+# others. The tool started with a single CV called cv_data, which stays the
+# default so existing data directories keep working untouched.
+DEFAULT_CV = "cv_data"
+
+# Conservative on purpose: the name reaches the filesystem, so anything that
+# could escape the data directory (dots, separators) must not get through.
+_CV_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 def linkify(text):
@@ -39,6 +50,95 @@ def data_path_for_lang(yaml_path: Path, lang: str, default_lang: str = "es") -> 
         return yaml_path
     candidate = yaml_path.with_name(f"{yaml_path.stem}_{lang}{yaml_path.suffix}")
     return candidate if candidate.exists() else yaml_path
+
+
+def validate_cv_name(name: str, known_langs: Iterable[str] = ()) -> str:
+    """Return name unchanged if it is usable as a CV identifier, else raise.
+
+    Rejects anything that could escape the data directory, plus names ending in
+    a known language suffix: "profile_en" would be indistinguishable from the
+    English variant of a CV called "profile".
+    """
+    if not isinstance(name, str) or not _CV_NAME_RE.match(name):
+        raise ValueError(
+            f"Invalid CV name: {name!r}. Use letters, digits, hyphens and "
+            "underscores (max 64 characters, starting with a letter or digit)."
+        )
+    for lang in known_langs:
+        if name.endswith(f"_{lang}"):
+            raise ValueError(
+                f"Invalid CV name: {name!r} ends in the language suffix "
+                f"'_{lang}', which would clash with a language variant."
+            )
+    return name
+
+
+def cv_file_path(
+    data_dir: Path,
+    cv: str,
+    lang: str,
+    default_lang: str = "es",
+    suffix: str = ".yaml",
+) -> Path:
+    """Exact file for (cv, lang). No fallback, no existence check."""
+    stem = cv if lang == default_lang else f"{cv}_{lang}"
+    return data_dir / f"{stem}{suffix}"
+
+
+def resolve_cv_path(
+    data_dir: Path,
+    cv: str,
+    lang: str,
+    default_lang: str = "es",
+    suffix: str = ".yaml",
+) -> Path:
+    """File to read for (cv, lang), falling back to the CV's base file.
+
+    Mirrors data_path_for_lang: asking for a language a CV has no file for
+    yields its default-language data rather than an error, so a new
+    translation starts from the existing content.
+    """
+    path = cv_file_path(data_dir, cv, lang, default_lang, suffix)
+    if path.exists():
+        return path
+    return cv_file_path(data_dir, cv, default_lang, default_lang, suffix)
+
+
+def list_cvs(
+    data_dir: Path,
+    known_langs: Iterable[str],
+    default_lang: str = "es",
+    suffix: str = ".yaml",
+) -> list[dict]:
+    """Discover the CVs in data_dir as [{"name": str, "langs": [str]}].
+
+    Groups <name>.yaml and <name>_<lang>.yaml under one entry. Files whose
+    stem is not a valid CV name are ignored, so unrelated YAML in the data
+    directory does not show up as a broken CV.
+    """
+    langs = [lang for lang in known_langs if lang != default_lang]
+    found: dict[str, set[str]] = {}
+
+    if not data_dir.is_dir():
+        return []
+
+    for path in data_dir.glob(f"*{suffix}"):
+        if not path.is_file():
+            continue
+        stem, lang = path.stem, default_lang
+        for candidate in langs:
+            if stem.endswith(f"_{candidate}"):
+                stem, lang = stem[: -len(candidate) - 1], candidate
+                break
+        try:
+            validate_cv_name(stem, known_langs)
+        except ValueError:
+            continue
+        found.setdefault(stem, set()).add(lang)
+
+    return [
+        {"name": name, "langs": sorted(found[name])} for name in sorted(found)
+    ]
 
 
 def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
@@ -75,9 +175,12 @@ def render_html(
     if primary_color:
         css = f":root {{ --primary-color: {primary_color}; }}\n" + css
 
+    # `meta:` may be absent entirely, or present but empty (which parses as
+    # None), on a hand-written or freshly created CV.
+    meta = data.get("meta") or {}
     photo_uri = None
-    if show_photo and data.get("meta", {}).get("photo"):
-        photo_uri = _photo_data_uri(Path(data["meta"]["photo"]), yaml_dir)
+    if show_photo and meta.get("photo"):
+        photo_uri = _photo_data_uri(Path(meta["photo"]), yaml_dir)
 
     return template.render(data=data, headers=headers, photo_uri=photo_uri, css=css)
 

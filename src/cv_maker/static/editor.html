@@ -27,6 +27,10 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-save { background: #4caf50; color: #fff; }
 .btn-pdf { background: #2196f3; color: #fff; }
 .btn-html { background: #ff9800; color: #fff; }
+.btn-cv { background: #2a2a4a; color: #ddd; border: 1px solid #555 !important; font-weight: 500 !important; }
+.btn-cv:hover { background: #3a3a5a; }
+.btn-danger { color: #ff8a80; }
+.btn-danger:hover { background: #4a2a2a; }
 .status { font-size: 12px; color: #aaa; margin-left: 8px; }
 .page-count { font-size: 12px; font-weight: 600; margin-right: 8px; }
 
@@ -135,6 +139,12 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 <body>
 <div class="toolbar">
     <span class="brand">CV Maker</span>
+    <label>CV
+        <select id="cv" title="Which CV you are editing"></select>
+    </label>
+    <button class="btn-cv" id="newCvBtn" title="Create a new CV">+ New</button>
+    <button class="btn-cv" id="dupCvBtn" title="Duplicate the current CV">Duplicate</button>
+    <button class="btn-cv btn-danger" id="delCvBtn" title="Delete the current CV">Delete</button>
     <label>Lang
         <select id="lang">
             <option value="es">ES</option>
@@ -169,6 +179,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 const yamlEl = document.getElementById('yaml');
 const previewEl = document.getElementById('preview');
 const langEl = document.getElementById('lang');
+const cvEl = document.getElementById('cv');
 const colorEl = document.getElementById('color');
 const photoEl = document.getElementById('photo');
 const statusEl = document.getElementById('status');
@@ -183,6 +194,8 @@ const btnFields = document.getElementById('btnFields');
 let currentView = 'yaml';
 let dirty = false;
 let loadedLang = null;
+let loadedCv = null;
+let defaultCv = null;
 
 function markDirty() { dirty = true; }
 
@@ -199,9 +212,14 @@ function getPayload() {
     return {
         yaml: yamlEl.value,
         lang: langEl.value,
+        cv: cvEl.value || null,
         show_photo: photoEl.checked,
         primary_color: colorEl.value,
     };
+}
+
+function downloadName(ext) {
+    return (cvEl.value || 'cv') + '_' + langEl.value + '.' + ext;
 }
 
 let debounceTimer;
@@ -548,13 +566,15 @@ function addSkill() { addRepeatable('skill-list', skillCard); }
 function addLang() { addRepeatable('lang-list', langCard); }
 function addCert() { addRepeatable('cert-list', certInput); }
 
-async function loadYaml(lang) {
-    const res = await fetch('/api/yaml?lang=' + encodeURIComponent(lang));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+async function loadYaml(cv, lang) {
+    const q = '/api/yaml?lang=' + encodeURIComponent(lang) + '&cv=' + encodeURIComponent(cv);
+    const res = await fetch(q);
+    if (!res.ok) throw new Error(await errorDetail(res));
     const d = await res.json();
     yamlEl.value = d.yaml;
     dirty = false;
     loadedLang = lang;
+    loadedCv = cv;
     if (currentView === 'fields') {
         try {
             const data = jsyaml.load(yamlEl.value) || {};
@@ -566,16 +586,40 @@ async function loadYaml(lang) {
     refreshPreview();
 }
 
-// Load config + YAML on start, then switch to the fields view.
+// --- CV list ---
+async function loadCvs(select) {
+    const res = await fetch('/api/cvs');
+    if (!res.ok) throw new Error(await errorDetail(res));
+    const d = await res.json();
+    const wanted = select || cvEl.value || d.default_cv;
+    cvEl.innerHTML = d.cvs
+        .map(c => `<option value="${escAttr(c.name)}">${esc(c.name)}</option>`)
+        .join('');
+    if ([...cvEl.options].some(o => o.value === wanted)) cvEl.value = wanted;
+    // Deleting the startup CV is refused server-side; reflect that in the UI.
+    document.getElementById('delCvBtn').disabled = (cvEl.value === defaultCv);
+    return d;
+}
+
+// Confirm before throwing away edits, and roll the select back if declined.
+function confirmDiscard(question, el, previous) {
+    if (!dirty || confirm('You have unsaved changes. Discard them and ' + question)) return true;
+    if (previous) el.value = previous;
+    return false;
+}
+
+// Load config + CV list + YAML on start, then switch to the fields view.
 (async () => {
     try {
         const cfg = await fetch('/api/config').then(r => r.json());
         if ([...langEl.options].some(o => o.value === cfg.default_lang)) {
             langEl.value = cfg.default_lang;
         }
+        defaultCv = cfg.default_cv;
     } catch (e) { /* keep the select's default */ }
     try {
-        await loadYaml(langEl.value);
+        await loadCvs(defaultCv);
+        await loadYaml(cvEl.value, langEl.value);
         toggleView('fields');
     } catch (e) {
         flash('Load error: ' + e.message, true);
@@ -584,14 +628,63 @@ async function loadYaml(lang) {
 
 yamlEl.addEventListener('input', () => { markDirty(); schedulePreview(); });
 langEl.addEventListener('change', async () => {
-    if (dirty && !confirm('You have unsaved changes. Discard them and switch language?')) {
-        if (loadedLang) langEl.value = loadedLang;
-        return;
-    }
+    if (!confirmDiscard('switch language?', langEl, loadedLang)) return;
     try {
-        await loadYaml(langEl.value);
+        await loadYaml(cvEl.value, langEl.value);
     } catch (e) {
         flash('Load error: ' + e.message, true);
+    }
+});
+
+cvEl.addEventListener('change', async () => {
+    if (!confirmDiscard('switch CV?', cvEl, loadedCv)) return;
+    try {
+        await loadYaml(cvEl.value, langEl.value);
+        document.getElementById('delCvBtn').disabled = (cvEl.value === defaultCv);
+    } catch (e) {
+        flash('Load error: ' + e.message, true);
+    }
+});
+
+// --- New / Duplicate / Delete CV ---
+async function createCv(copyFrom) {
+    const label = copyFrom ? `Duplicate "${copyFrom}" as:` : 'Name for the new CV:';
+    const suggested = copyFrom ? copyFrom + '-copy' : '';
+    const name = (prompt(label + '\n(letters, digits, hyphens, underscores)', suggested) || '').trim();
+    if (!name) return;
+    if (!confirmDiscard('create a new CV?', cvEl, loadedCv)) return;
+    try {
+        const res = await fetch('/api/cvs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, copy_from: copyFrom || null }),
+        });
+        if (!res.ok) throw new Error(await errorDetail(res));
+        const d = await res.json();
+        await loadCvs(d.name);
+        await loadYaml(cvEl.value, langEl.value);
+        flash(copyFrom ? `Duplicated as "${d.name}"` : `Created "${d.name}"`);
+    } catch (e) {
+        flash('Create error: ' + e.message, true);
+    }
+}
+
+document.getElementById('newCvBtn').addEventListener('click', () => createCv(null));
+document.getElementById('dupCvBtn').addEventListener('click', () => createCv(cvEl.value));
+
+document.getElementById('delCvBtn').addEventListener('click', async () => {
+    const name = cvEl.value;
+    if (!name) return;
+    if (!confirm(`Delete the CV "${name}" and all its language files?\n\nA .bak copy of each file is kept next to it.`)) return;
+    try {
+        const res = await fetch('/api/cvs/' + encodeURIComponent(name), { method: 'DELETE' });
+        if (!res.ok) throw new Error(await errorDetail(res));
+        dirty = false; // the file it came from is gone
+        await loadCvs(defaultCv);
+        await loadYaml(cvEl.value, langEl.value);
+        flash(`Deleted "${name}"`);
+    } catch (e) {
+        flash('Delete error: ' + e.message, true);
     }
 });
 colorEl.addEventListener('input', schedulePreview);
@@ -649,10 +742,12 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         const res = await fetch('/api/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ yaml: getPayload().yaml, lang: langEl.value }),
+            body: JSON.stringify({ yaml: getPayload().yaml, lang: langEl.value, cv: cvEl.value || null }),
         });
         if (!res.ok) throw new Error(await errorDetail(res));
         dirty = false;
+        // A first save in a new language adds a file, so refresh the list.
+        loadCvs(cvEl.value).catch(() => {});
         flash('Saved!');
     } catch (e) {
         flash('Save error: ' + e.message, true);
@@ -662,7 +757,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 document.getElementById('pdfBtn').addEventListener('click', async () => {
     flash('Generating PDF...');
     try {
-        await downloadFrom('/api/pdf', 'cv.pdf');
+        await downloadFrom('/api/pdf', downloadName('pdf'));
         flash('PDF downloaded!');
     } catch (e) {
         flash('PDF error: ' + e.message, true);
@@ -671,7 +766,7 @@ document.getElementById('pdfBtn').addEventListener('click', async () => {
 
 document.getElementById('htmlBtn').addEventListener('click', async () => {
     try {
-        await downloadFrom('/api/export-html', 'cv.html');
+        await downloadFrom('/api/export-html', downloadName('html'));
         flash('HTML exported!');
     } catch (e) {
         flash('Export error: ' + e.message, true);
