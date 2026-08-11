@@ -285,8 +285,14 @@ function toggleView(mode) {
 }
 
 // --- Fields → YAML ---
+// The last full document parsed into the fields view. fieldsToYaml() only
+// knows about the sections it renders, so anything else in the file (a section
+// added by hand, or one this page is too old to know about) is carried over
+// from here instead of being silently dropped on the next save.
+let sourceDoc = {};
+
 function fieldsToYaml() {
-    const obj = {};
+    const obj = Object.assign({}, sourceDoc);
     obj.name = gv('f-name');
     obj.headline = gv('f-headline');
 
@@ -392,6 +398,7 @@ function gv(id) { return document.getElementById(id)?.value || ''; }
 
 // --- YAML → Fields ---
 function yamlToFields(data) {
+    sourceDoc = data || {};
     const c = data.contact || {};
     const m = data.meta || {};
 

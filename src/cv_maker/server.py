@@ -1,5 +1,6 @@
 import html
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -50,11 +51,30 @@ def _error_page(message: str) -> HTMLResponse:
     )
 
 
+HISTORY_DIR = ".history"
+HISTORY_KEEP = 20
+
+
 def _backup(path: Path) -> None:
-    """Keep the current contents alongside as .bak so a write is reversible."""
-    path.with_name(path.name + ".bak").write_text(
-        path.read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    """Preserve the current contents before a write replaces them.
+
+    Writes both the adjacent .bak and a timestamped copy under .history/. The
+    .bak alone is not enough: two saves in a row push the good version out of
+    it, which is exactly how a section can become unrecoverable.
+    """
+    current = path.read_text(encoding="utf-8")
+    path.with_name(path.name + ".bak").write_text(current, encoding="utf-8")
+
+    history = path.parent / HISTORY_DIR
+    history.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    snapshot = history / f"{path.stem}-{stamp}{path.suffix}"
+    if not snapshot.exists():
+        snapshot.write_text(current, encoding="utf-8")
+
+    old = sorted(history.glob(f"{path.stem}-*{path.suffix}"))[:-HISTORY_KEEP]
+    for stale in old:
+        stale.unlink()
 
 
 def _starter_yaml(lang: str) -> str:
@@ -170,7 +190,14 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     def editor_page():
-        return FileResponse(STATIC_DIR / "editor.html", media_type="text/html")
+        # Never cache the editor: a page held over from an older version writes
+        # YAML using its own idea of which sections exist, which silently drops
+        # any section it does not know about.
+        return FileResponse(
+            STATIC_DIR / "editor.html",
+            media_type="text/html",
+            headers={"Cache-Control": "no-store, must-revalidate"},
+        )
 
     @app.get("/api/config")
     def config():
