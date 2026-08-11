@@ -174,6 +174,53 @@ def test_save_new_lang_creates_file_without_clobbering_base(client, data_dir):
     assert "English Version" in r.json()["yaml"]
 
 
+def test_editor_page_is_not_cacheable(client):
+    """A stale editor page writes YAML using its own idea of the schema."""
+    r = client.get("/")
+    assert "no-store" in r.headers.get("cache-control", "")
+
+
+def test_save_keeps_a_timestamped_history_snapshot(client, data_dir):
+    client.post("/api/save", json={"yaml": "name: V2", "lang": "es"})
+    snaps = list((data_dir / ".history").glob("cv_data-*.yaml"))
+    assert len(snaps) == 1
+    assert snaps[0].read_text(encoding="utf-8") == SAMPLE_YAML
+
+
+def test_two_saves_do_not_destroy_the_original(client, data_dir):
+    """The .bak alone loses the good copy after a second save; history must not."""
+    client.post("/api/save", json={"yaml": "name: V2", "lang": "es"})
+    client.post("/api/save", json={"yaml": "name: V3", "lang": "es"})
+
+    # .bak now only holds V2 -- the original survives only in history.
+    assert "V2" in (data_dir / "cv_data.yaml.bak").read_text(encoding="utf-8")
+    history = sorted((data_dir / ".history").glob("cv_data-*.yaml"))
+    assert any(
+        SAMPLE_YAML == s.read_text(encoding="utf-8") for s in history
+    ), "original content must remain recoverable from history"
+
+
+def test_history_is_capped(client, data_dir, monkeypatch):
+    import cv_maker.server as srv
+
+    monkeypatch.setattr(srv, "HISTORY_KEEP", 3)
+    for i in range(6):
+        # Distinct timestamps are not guaranteed within a test run, so write
+        # the snapshots directly through the helper being exercised.
+        (data_dir / "cv_data.yaml").write_text(f"name: V{i}", encoding="utf-8")
+        srv._backup(data_dir / "cv_data.yaml")
+        for n, snap in enumerate(sorted((data_dir / ".history").glob("cv_data-*.yaml"))):
+            snap.rename(snap.with_name(f"cv_data-2026010{n}-000000.yaml"))
+    assert len(list((data_dir / ".history").glob("cv_data-*.yaml"))) <= 3
+
+
+def test_history_dir_is_not_mistaken_for_a_cv(client, data_dir):
+    client.post("/api/save", json={"yaml": "name: V2", "lang": "es"})
+    assert client.get("/api/cvs").json()["cvs"] == [
+        {"name": "cv_data", "langs": ["es"]}
+    ]
+
+
 def test_editor_page_and_static_assets_served(client):
     assert "CV Maker" in client.get("/").text
     r = client.get("/static/js-yaml.min.js")

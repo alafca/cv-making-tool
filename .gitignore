@@ -6,3 +6,6 @@ __pycache__/
 .venv/
 .claude
 *.yaml
+
+# editor save history
+data/.history/
