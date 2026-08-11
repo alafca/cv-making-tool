@@ -40,7 +40,14 @@ def main():
         "--lang",
         choices=["en", "es"],
         default="es",
-        help="Language for section headers (default: es)",
+        help="Language to render, or to open the editor in (default: es)",
+    )
+    parser.add_argument(
+        "--base-lang",
+        choices=["en", "es"],
+        default="es",
+        help="Language held by the unsuffixed data file, e.g. cv_data.yaml "
+        "(default: es). Other languages live in cv_data_<lang>.yaml.",
     )
     parser.add_argument(
         "--no-photo",
@@ -63,9 +70,10 @@ def main():
     data_dir = args.data.parent
     suffix = args.data.suffix or ".yaml"
     known_langs = supported_langs()
+    base_lang = args.base_lang
 
     if args.list_cvs:
-        cvs = list_cvs(data_dir, known_langs, "es", suffix)
+        cvs = list_cvs(data_dir, known_langs, base_lang, suffix)
         if not cvs:
             print(f"No CVs found in {data_dir}")
             return
@@ -79,19 +87,27 @@ def main():
             cv = validate_cv_name(args.cv, known_langs)
         except ValueError as exc:
             parser.error(str(exc))
-        data_path = cv_file_path(data_dir, cv, "es", "es", suffix)
+        data_path = cv_file_path(data_dir, cv, base_lang, base_lang, suffix)
         if not data_path.exists():
             parser.error(f"No CV named '{cv}' in {data_dir} (expected {data_path})")
 
     if args.serve:
         from cv_maker.server import run_server
 
-        run_server(data_path, port=args.port, default_lang=args.lang)
+        # --lang picks the language the editor opens in; --base-lang describes
+        # the files on disk. Conflating them makes the editor read the wrong
+        # file for every language.
+        run_server(
+            data_path,
+            port=args.port,
+            default_lang=base_lang,
+            initial_lang=args.lang,
+        )
     else:
         if args.cv:
-            lang_path = resolve_cv_path(data_dir, args.cv, args.lang, "es", suffix)
+            lang_path = resolve_cv_path(data_dir, args.cv, args.lang, base_lang, suffix)
         else:
-            lang_path = data_path_for_lang(data_path, args.lang)
+            lang_path = data_path_for_lang(data_path, args.lang, base_lang)
         # Keep the historical output/cv.pdf default; only a named CV gets its
         # own filename, so tailored versions don't overwrite each other.
         default_output = Path("output") / (f"{args.cv}.pdf" if args.cv else "cv.pdf")

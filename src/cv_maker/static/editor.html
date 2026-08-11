@@ -645,8 +645,11 @@ function confirmDiscard(question, el, previous) {
 (async () => {
     try {
         const cfg = await fetch('/api/config').then(r => r.json());
-        if ([...langEl.options].some(o => o.value === cfg.default_lang)) {
-            langEl.value = cfg.default_lang;
+        // initial_lang is which language to open in; default_lang describes the
+        // files on disk and must not be used to pick the initial selection.
+        const startLang = cfg.initial_lang || cfg.default_lang;
+        if ([...langEl.options].some(o => o.value === startLang)) {
+            langEl.value = startLang;
         }
         defaultCv = cfg.default_cv;
     } catch (e) { /* keep the select's default */ }

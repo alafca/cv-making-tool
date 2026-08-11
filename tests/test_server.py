@@ -419,6 +419,41 @@ def test_render_survives_missing_or_empty_meta(client, body):
     assert client.post("/api/pdf", json={"yaml": body, "lang": "en"}).status_code == 200
 
 
+def test_opening_in_another_language_keeps_the_disk_layout(data_dir):
+    """--lang picks the editor's starting language, not the base file's language.
+
+    Regression: passing initial_lang through as default_lang made the server
+    treat the Spanish cv_data.yaml as the English file, hid cv_data_en.yaml
+    from the CV list, and served the same content for both languages.
+    """
+    from fastapi.testclient import TestClient
+
+    (data_dir / "cv_data_en.yaml").write_text("name: English Version", encoding="utf-8")
+    c = TestClient(create_app(data_dir / "cv_data.yaml", "es", initial_lang="en"))
+
+    cfg = c.get("/api/config").json()
+    assert cfg["default_lang"] == "es"
+    assert cfg["initial_lang"] == "en"
+    # Both files still resolve to their own content.
+    assert "English Version" in c.get("/api/yaml", params={"lang": "en"}).json()["yaml"]
+    assert "Jane Doe" in c.get("/api/yaml", params={"lang": "es"}).json()["yaml"]
+    # And the English file is still recognised as part of the CV.
+    assert c.get("/api/cvs").json()["cvs"] == [
+        {"name": "cv_data", "langs": ["en", "es"]}
+    ]
+
+
+def test_initial_lang_defaults_to_base_lang(client):
+    assert client.get("/api/config").json()["initial_lang"] == "es"
+
+
+def test_unknown_initial_lang_falls_back(data_dir):
+    from fastapi.testclient import TestClient
+
+    c = TestClient(create_app(data_dir / "cv_data.yaml", "es", initial_lang="fr"))
+    assert c.get("/api/config").json()["initial_lang"] == "es"
+
+
 def test_config_reports_cv_defaults(client):
     d = client.get("/api/config").json()
     assert d["default_cv"] == "cv_data"
