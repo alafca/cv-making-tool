@@ -103,13 +103,25 @@ def _default_cv_from_path(yaml_path: Path, known_langs, default_lang: str) -> st
         return DEFAULT_CV
 
 
-def create_app(yaml_path: Path, default_lang: str = "es") -> FastAPI:
+def create_app(
+    yaml_path: Path,
+    default_lang: str = "es",
+    initial_lang: str | None = None,
+) -> FastAPI:
+    """Editor app for the CVs in yaml_path's directory.
+
+    default_lang is a property of the files on disk: the language held by the
+    unsuffixed file. initial_lang only chooses which language the editor opens
+    in, and defaults to default_lang.
+    """
     app = FastAPI()
     yaml_path = yaml_path.resolve()
     data_dir = yaml_path.parent
     suffix = yaml_path.suffix or ".yaml"
     known_langs = supported_langs()
     default_cv = _default_cv_from_path(yaml_path, known_langs, default_lang)
+    if initial_lang not in known_langs:
+        initial_lang = default_lang
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     def valid_cv(name: str | None) -> str:
@@ -164,6 +176,7 @@ def create_app(yaml_path: Path, default_lang: str = "es") -> FastAPI:
     def config():
         return {
             "default_lang": default_lang,
+            "initial_lang": initial_lang,
             "default_cv": default_cv,
             "langs": list(known_langs),
         }
@@ -288,10 +301,11 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 8765,
     default_lang: str = "es",
+    initial_lang: str | None = None,
 ) -> None:
     import uvicorn
 
-    app = create_app(yaml_path, default_lang=default_lang)
+    app = create_app(yaml_path, default_lang=default_lang, initial_lang=initial_lang)
     url = f"http://{host}:{port}"
     print(f"Starting CV Maker editor at {url}")
     webbrowser.open(url)
