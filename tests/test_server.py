@@ -48,6 +48,12 @@ education:
 skills:
   - category: Tools
     entries: pytest, coverage
+publications:
+  - title: A Paper About Testing
+    venue: Journal of Tests
+    year: 2024
+    url: https://example.com/paper
+    note: co-author
 languages:
   - name: English
     level: native
@@ -190,6 +196,53 @@ def test_data_path_for_lang(tmp_path):
     en = tmp_path / "cv_en.yaml"
     en.write_text("name: y", encoding="utf-8")
     assert data_path_for_lang(base, "en") == en
+
+
+# --- Publications -----------------------------------------------------------
+
+
+def test_preview_renders_publications(client):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML, "lang": "en"})
+    assert r.status_code == 200
+    assert "Publications" in r.text
+    assert "A Paper About Testing" in r.text
+    assert "Journal of Tests" in r.text
+    assert "2024" in r.text
+    assert "co-author" in r.text
+    # A url turns the title into a link.
+    assert '<a href="https://example.com/paper">A Paper About Testing</a>' in r.text
+
+
+def test_publications_header_is_localised(client):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML, "lang": "es"})
+    assert "Publicaciones" in r.text
+
+
+def test_publication_without_url_or_note_still_renders(client):
+    body = "name: X\npublications:\n  - title: Bare Paper\n    venue: Some Journal\n    year: 2020\n"
+    r = client.post("/api/preview", json={"yaml": body, "lang": "en"})
+    assert r.status_code == 200
+    assert "Bare Paper" in r.text
+    assert "<a href" not in r.text.split("Bare Paper")[0][-200:]
+
+
+def test_publications_section_absent_when_no_data(client):
+    body = "name: X\nsummary: no papers here\n"
+    r = client.post("/api/preview", json={"yaml": body, "lang": "en"})
+    assert "Publications" not in r.text
+
+
+def test_publication_fields_are_escaped(client):
+    body = 'name: X\npublications:\n  - title: "<script>alert(1)</script>"\n    venue: J\n    year: 2020\n'
+    r = client.post("/api/preview", json={"yaml": body, "lang": "en"})
+    assert "<script>alert(1)</script>" not in r.text
+    assert "&lt;script&gt;" in r.text
+
+
+def test_pdf_includes_publications(client):
+    r = client.post("/api/pdf", json={"yaml": SAMPLE_YAML, "lang": "en"})
+    assert r.status_code == 200
+    assert r.content.startswith(b"%PDF")
 
 
 # --- Multiple CVs -----------------------------------------------------------

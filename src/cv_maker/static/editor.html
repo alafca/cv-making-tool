@@ -329,6 +329,18 @@ function fieldsToYaml() {
         });
     });
 
+    // Publications
+    obj.publications = [];
+    fieldsView.querySelectorAll('.pub-item').forEach(el => {
+        obj.publications.push({
+            title: el.querySelector('.pub-title').value,
+            venue: el.querySelector('.pub-venue').value,
+            year: el.querySelector('.pub-year').value,
+            url: el.querySelector('.pub-url').value,
+            note: el.querySelector('.pub-note').value,
+        });
+    });
+
     // Skills
     obj.skills = [];
     fieldsView.querySelectorAll('.skill-item').forEach(el => {
@@ -433,6 +445,13 @@ function yamlToFields(data) {
         <button type="button" class="add-btn" onclick="addEdu()">+ Add education</button>
     `);
 
+    // Publications
+    const pubItems = (data.publications || []).map(pubCard).join('');
+    html += section('Publications', `
+        <div id="pub-list">${pubItems}</div>
+        <button type="button" class="add-btn" onclick="addPub()">+ Add publication</button>
+    `);
+
     // Skills
     const skillItems = (data.skills || []).map(skillCard).join('');
     html += section('Skills', `
@@ -521,6 +540,19 @@ function eduCard(e) {
     </div>`;
 }
 
+function pubCard(e) {
+    e = e || {};
+    return `<div class="repeatable-item pub-item">
+        ${itemActions()}
+        <label class="field-label">Title</label>
+        <textarea class="pub-title" rows="2">${esc(e.title || '')}</textarea>
+        ${field('Venue (journal, conference, preprint server)', 'text', '', e.venue || '').replace(/ id=""/, ' class="pub-venue"')}
+        ${field('Year', 'text', '', e.year === undefined ? '' : String(e.year)).replace(/ id=""/, ' class="pub-year"')}
+        ${field('URL', 'text', '', e.url || '').replace(/ id=""/, ' class="pub-url"')}
+        ${field('Note (e.g. co-author, pre-print)', 'text', '', e.note || '').replace(/ id=""/, ' class="pub-note"')}
+    </div>`;
+}
+
 function skillCard(e) {
     e = e || {};
     return `<div class="repeatable-item skill-item">
@@ -562,6 +594,7 @@ function addRepeatable(listId, cardFn) {
 
 function addExp() { addRepeatable('exp-list', expCard); }
 function addEdu() { addRepeatable('edu-list', eduCard); }
+function addPub() { addRepeatable('pub-list', pubCard); }
 function addSkill() { addRepeatable('skill-list', skillCard); }
 function addLang() { addRepeatable('lang-list', langCard); }
 function addCert() { addRepeatable('cert-list', certInput); }
@@ -836,6 +869,7 @@ window.addEventListener('resize', fitPreview);
 const REPEATABLE_MAP = {
     experience: { selector: '.exp-item', fields: { title: '.exp-title', company: '.exp-company', location: '.exp-location', dates: '.exp-dates', description: '.exp-desc', bullets: '.exp-bullets' } },
     education: { selector: '.edu-item', fields: { institution: '.edu-inst', degree: '.edu-degree', dates: '.edu-dates' } },
+    publications: { selector: '.pub-item', fields: { title: '.pub-title', venue: '.pub-venue', year: '.pub-year', url: '.pub-url', note: '.pub-note' } },
     skills: { selector: '.skill-item', fields: { category: '.skill-cat', entries: '.skill-entries' } },
     languages: { selector: '.lang-item', fields: { name: '.lang-name', level: '.lang-level' } },
 };

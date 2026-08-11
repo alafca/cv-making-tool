@@ -76,6 +76,21 @@
     </section>
     {% endif %}
 
+    {% if data.publications %}
+    <section>
+        <h2>{{ headers.publications }}</h2>
+        {% for pub in data.publications %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title" data-edit="publications.{{ loop.index0 }}.title">{% if pub.url %}<a href="{{ pub.url }}">{{ pub.title }}</a>{% else %}{{ pub.title }}{% endif %}</span>
+                <span class="entry-dates" data-edit="publications.{{ loop.index0 }}.year">{{ pub.year }}</span>
+            </div>
+            <div class="entry-subtitle"><span data-edit="publications.{{ loop.index0 }}.venue">{{ pub.venue }}</span>{% if pub.note %} — <span data-edit="publications.{{ loop.index0 }}.note">{{ pub.note }}</span>{% endif %}</div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
     {% if data.skills %}
     <section>
         <h2>{{ headers.skills }}</h2>
