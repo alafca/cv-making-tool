@@ -42,6 +42,9 @@ other.
 
 CV names may contain letters, digits, hyphens and underscores.
 
+The profile photo is off by default, which is the convention for US resumes.
+Tick **Photo** in the editor, or pass `--photo` on the command line, to include it.
+
 **Copy Markdown** puts the whole CV on the clipboard as markdown — handy for
 pasting into a chat with an AI assistant for feedback.
 

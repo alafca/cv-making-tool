@@ -131,11 +131,27 @@ def test_read_rejects_path_traversal(client):
 
 
 def test_preview_renders_html_with_photo_and_links(client):
-    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML})
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML, "show_photo": True})
     assert r.status_code == 200
     assert "<h1" in r.text
     assert "data:image/jpeg;base64" in r.text  # RGBA png converted fine
     assert '<a href="https://example.com/thing">see here</a>' in r.text
+
+
+def test_photo_is_omitted_by_default(client):
+    """US-style resumes carry no photo, so it must be opt-in."""
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML})
+    assert r.status_code == 200
+    assert "data:image/jpeg;base64" not in r.text
+    assert "Jane Doe" in r.text  # everything else still renders
+
+
+def test_pdf_omits_the_photo_by_default(client):
+    with_photo = client.post(
+        "/api/pdf", json={"yaml": SAMPLE_YAML, "show_photo": True}
+    ).content
+    without = client.post("/api/pdf", json={"yaml": SAMPLE_YAML}).content
+    assert len(without) < len(with_photo)
 
 
 def test_preview_escapes_contact_fields(client):

@@ -25,7 +25,8 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 class PreviewRequest(BaseModel):
     yaml: str
-    show_photo: bool = True
+    # Off by default: US-style resumes do not carry a photo.
+    show_photo: bool = False
     primary_color: str | None = None
     # Only used to name downloaded files; the content always comes from `yaml`.
     cv: str | None = None

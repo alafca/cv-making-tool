@@ -29,9 +29,15 @@ def main():
         help="Output PDF path (default: output/cv.pdf, or output/<cv>.pdf with --cv)",
     )
     parser.add_argument(
+        "--photo",
+        action="store_true",
+        help="Include the profile photo (omitted by default)",
+    )
+    parser.add_argument(
+        # Now the default. Still accepted so existing commands keep working.
         "--no-photo",
         action="store_true",
-        help="Disable profile photo",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--serve",
@@ -78,6 +84,6 @@ def main():
         default_output = Path("output") / (f"{args.cv}.pdf" if args.cv else "cv.pdf")
         output = args.output or default_output
         try:
-            build_cv(data_path, output, show_photo=not args.no_photo)
+            build_cv(data_path, output, show_photo=args.photo and not args.no_photo)
         except (OSError, ValueError) as exc:
             sys.exit(f"Error: {exc}")
