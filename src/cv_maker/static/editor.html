@@ -10,7 +10,7 @@
 body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; }
 .toolbar {
     display: flex; align-items: center; gap: 12px; padding: 8px 16px;
-    background: #1a1a2e; color: #fff; flex-wrap: wrap;
+    background: #1a1a2e; color: #fff; flex-wrap: wrap; position: relative;
 }
 .toolbar .brand { font-weight: 700; font-size: 16px; margin-right: 8px; }
 .toolbar label { font-size: 13px; }
@@ -32,8 +32,24 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-cv:hover { background: #3a3a5a; }
 .btn-danger { color: #ff8a80; }
 .btn-danger:hover { background: #4a2a2a; }
-.status { font-size: 12px; color: #aaa; margin-left: 8px; }
-.page-count { font-size: 12px; font-weight: 600; margin-right: 8px; }
+.page-count {
+    font-size: 12px; font-weight: 600; margin-right: 8px;
+    min-width: 58px; text-align: right;
+}
+
+/* Transient messages float below the toolbar instead of sitting inside it:
+   anything in the flex row shifts the buttons, or wraps the bar taller, as
+   soon as it has text. Anchored to the toolbar so it follows if that wraps. */
+.toast {
+    position: absolute; top: calc(100% + 8px); right: 16px; z-index: 200;
+    max-width: 340px; padding: 8px 14px; border-radius: 6px;
+    background: #2e7d32; color: #fff; font-size: 13px; font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+    opacity: 0; transform: translateY(-6px); pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: #c62828; }
 
 /* Toggle buttons */
 .view-toggle { display: flex; gap: 0; margin-left: 8px; }
@@ -158,7 +174,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     <button class="btn-pdf" id="pdfBtn">Download PDF</button>
     <button class="btn-html" id="htmlBtn">Export HTML</button>
     <button class="btn-md" id="mdBtn" title="Copy the whole CV as Markdown, for pasting into a chat">Copy Markdown</button>
-    <span class="status" id="status"></span>
+    <div class="toast" id="status" role="status" aria-live="polite"></div>
 </div>
 <div class="main">
     <div class="editor-pane">
@@ -193,10 +209,14 @@ let defaultCv = null;
 
 function markDirty() { dirty = true; }
 
+let flashTimer;
 function flash(msg, err) {
     statusEl.textContent = msg;
-    statusEl.style.color = err ? '#ff6b6b' : '#aaa';
-    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    statusEl.classList.toggle('error', !!err);
+    statusEl.classList.add('show');
+    clearTimeout(flashTimer);
+    // Keep the text while it fades so the box does not blank mid-transition.
+    flashTimer = setTimeout(() => statusEl.classList.remove('show'), 2600);
 }
 
 function getPayload() {
