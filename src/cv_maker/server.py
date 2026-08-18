@@ -16,7 +16,6 @@ from cv_maker.generator import (
     list_cvs,
     render_html,
     render_markdown,
-    resolve_cv_path,
     validate_cv_name,
 )
 from cv_maker.i18n import supported_langs
@@ -26,7 +25,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 class PreviewRequest(BaseModel):
     yaml: str
-    lang: str = "es"
     show_photo: bool = True
     primary_color: str | None = None
     # Only used to name downloaded files; the content always comes from `yaml`.
@@ -35,13 +33,12 @@ class PreviewRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     yaml: str
-    lang: str = "es"
     cv: str | None = None
 
 
 class CreateCvRequest(BaseModel):
     name: str
-    # When set, the new CV starts as a copy of this one (all its languages).
+    # When set, the new CV starts as a copy of this one.
     copy_from: str | None = None
 
 
@@ -78,7 +75,7 @@ def _backup(path: Path) -> None:
         stale.unlink()
 
 
-def _starter_yaml(lang: str) -> str:
+def _starter_yaml() -> str:
     """Minimal valid CV so a brand-new file opens cleanly in the fields view."""
     return (
         "name: Your Name\n"
@@ -87,7 +84,7 @@ def _starter_yaml(lang: str) -> str:
         "  email: you@example.com\n"
         "  location: City, Country\n"
         "meta:\n"
-        f"  lang: {lang}\n"
+        "  lang: en\n"
         "summary: A short professional summary.\n"
         "experience:\n"
         "  - title: Job title\n"
@@ -107,42 +104,25 @@ def _starter_yaml(lang: str) -> str:
     )
 
 
-def _default_cv_from_path(yaml_path: Path, known_langs, default_lang: str) -> str:
-    """CV name implied by the path the server was started with.
-
-    Tolerates being pointed straight at a language variant (cv_data_en.yaml)
-    and falls back to DEFAULT_CV for a stem that is not a usable CV name.
-    """
-    stem = yaml_path.stem
-    for lang in known_langs:
-        if lang != default_lang and stem.endswith(f"_{lang}"):
-            stem = stem[: -len(lang) - 1]
-            break
+def _default_cv_from_path(yaml_path: Path) -> str:
+    """CV name implied by the path the server was started with."""
     try:
-        return validate_cv_name(stem, known_langs)
+        return validate_cv_name(yaml_path.stem)
     except ValueError:
         return DEFAULT_CV
 
 
-def create_app(
-    yaml_path: Path,
-    default_lang: str = "es",
-    initial_lang: str | None = None,
-) -> FastAPI:
+def create_app(yaml_path: Path) -> FastAPI:
     """Editor app for the CVs in yaml_path's directory.
 
-    default_lang is a property of the files on disk: the language held by the
-    unsuffixed file. initial_lang only chooses which language the editor opens
-    in, and defaults to default_lang.
+    Each CV is one file and declares its own language through meta.lang, so the
+    server has no notion of a default language.
     """
     app = FastAPI()
     yaml_path = yaml_path.resolve()
     data_dir = yaml_path.parent
     suffix = yaml_path.suffix or ".yaml"
-    known_langs = supported_langs()
-    default_cv = _default_cv_from_path(yaml_path, known_langs, default_lang)
-    if initial_lang not in known_langs:
-        initial_lang = default_lang
+    default_cv = _default_cv_from_path(yaml_path)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     def valid_cv(name: str | None) -> str:
@@ -150,12 +130,12 @@ def create_app(
         if name is None:
             return default_cv
         try:
-            return validate_cv_name(name, known_langs)
+            return validate_cv_name(name)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-    def known_cvs() -> list[dict]:
-        return list_cvs(data_dir, known_langs, default_lang, suffix)
+    def known_cvs() -> list[str]:
+        return list_cvs(data_dir, suffix)
 
     def parse_yaml_or_raise(text: str) -> dict:
         try:
@@ -171,7 +151,6 @@ def create_app(
         try:
             return render_html(
                 data,
-                req.lang,
                 req.show_photo,
                 data_dir,
                 primary_color=req.primary_color,
@@ -183,11 +162,10 @@ def create_app(
         """Name downloads after the CV so tailored versions don't collide."""
         cv = req.cv if req.cv else default_cv
         try:
-            cv = validate_cv_name(cv, known_langs)
+            cv = validate_cv_name(cv)
         except ValueError:
             cv = default_cv
-        lang = req.lang if req.lang in known_langs else default_lang
-        return f"{cv}_{lang}.{extension}"
+        return f"{cv}.{extension}"
 
     @app.get("/", response_class=HTMLResponse)
     def editor_page():
@@ -202,12 +180,8 @@ def create_app(
 
     @app.get("/api/config")
     def config():
-        return {
-            "default_lang": default_lang,
-            "initial_lang": initial_lang,
-            "default_cv": default_cv,
-            "langs": list(known_langs),
-        }
+        # langs only populates the per-CV meta.lang selector in the fields view.
+        return {"default_cv": default_cv, "langs": list(supported_langs())}
 
     @app.get("/api/cvs")
     def get_cvs():
@@ -216,60 +190,48 @@ def create_app(
     @app.post("/api/cvs")
     def create_cv(req: CreateCvRequest):
         name = valid_cv(req.name)
-        if any(entry["name"] == name for entry in known_cvs()):
+        if name in known_cvs():
             raise HTTPException(
                 status_code=409, detail=f"A CV named '{name}' already exists."
             )
 
-        created = []
+        dst = cv_file_path(data_dir, name, suffix)
         if req.copy_from:
             source = valid_cv(req.copy_from)
-            for lang in known_langs:
-                src = cv_file_path(data_dir, source, lang, default_lang, suffix)
-                if not src.exists():
-                    continue
-                dst = cv_file_path(data_dir, name, lang, default_lang, suffix)
-                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                created.append(lang)
-            if not created:
+            src = cv_file_path(data_dir, source, suffix)
+            if not src.exists():
                 raise HTTPException(
-                    status_code=404, detail=f"No data files found for '{source}'."
+                    status_code=404, detail=f"No data file found for '{source}'."
                 )
+            dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
         else:
-            dst = cv_file_path(data_dir, name, default_lang, default_lang, suffix)
-            dst.write_text(_starter_yaml(default_lang), encoding="utf-8")
-            created.append(default_lang)
+            dst.write_text(_starter_yaml(), encoding="utf-8")
 
-        return {"ok": True, "name": name, "langs": sorted(created)}
+        return {"ok": True, "name": name}
 
     @app.delete("/api/cvs/{name}")
     def delete_cv(name: str):
         name = valid_cv(name)
-        existing = {entry["name"] for entry in known_cvs()}
-        if name not in existing:
+        if name not in known_cvs():
             raise HTTPException(status_code=404, detail=f"No CV named '{name}'.")
         if name == default_cv:
             raise HTTPException(
                 status_code=400,
                 detail=f"'{name}' is the CV this editor was started with and "
-                "is the fallback for the others; it cannot be deleted here.",
+                "cannot be deleted here.",
             )
 
-        removed = []
-        for lang in known_langs:
-            path = cv_file_path(data_dir, name, lang, default_lang, suffix)
-            if path.exists():
-                # Backed up rather than merely unlinked: a mis-click should not
-                # destroy a tailored CV.
-                _backup(path)
-                path.unlink()
-                removed.append(path.name)
-        return {"ok": True, "removed": removed}
+        path = cv_file_path(data_dir, name, suffix)
+        # Backed up rather than merely unlinked: a mis-click should not destroy
+        # a tailored CV.
+        _backup(path)
+        path.unlink()
+        return {"ok": True, "removed": [path.name]}
 
     @app.get("/api/yaml")
-    def read_yaml(lang: str = "es", cv: str | None = None):
+    def read_yaml(cv: str | None = None):
         cv = valid_cv(cv)
-        path = resolve_cv_path(data_dir, cv, lang, default_lang, suffix)
+        path = cv_file_path(data_dir, cv, suffix)
         if not path.exists():
             raise HTTPException(status_code=404, detail=f"Data file not found: {path}")
         return {"yaml": path.read_text(encoding="utf-8"), "cv": cv, "path": str(path)}
@@ -291,9 +253,7 @@ def create_app(
     def save_yaml(req: SaveRequest):
         parse_yaml_or_raise(req.yaml)
         cv = valid_cv(req.cv)
-        # Always write the language-specific file for non-default languages so a
-        # first save in a new language never overwrites the base data file.
-        path = cv_file_path(data_dir, cv, req.lang, default_lang, suffix)
+        path = cv_file_path(data_dir, cv, suffix)
         if path.exists():
             # Keep the previous version so one bad save is always reversible.
             _backup(path)
@@ -325,7 +285,7 @@ def create_app(
     def markdown(req: PreviewRequest):
         data = parse_yaml_or_raise(req.yaml)
         try:
-            text = render_markdown(data, req.lang)
+            text = render_markdown(data)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Markdown error: {exc}")
         return Response(content=text, media_type="text/markdown; charset=utf-8")
@@ -337,12 +297,10 @@ def run_server(
     yaml_path: Path,
     host: str = "127.0.0.1",
     port: int = 8765,
-    default_lang: str = "es",
-    initial_lang: str | None = None,
 ) -> None:
     import uvicorn
 
-    app = create_app(yaml_path, default_lang=default_lang, initial_lang=initial_lang)
+    app = create_app(yaml_path)
     url = f"http://{host}:{port}"
     print(f"Starting CV Maker editor at {url}")
     webbrowser.open(url)

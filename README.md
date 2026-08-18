@@ -20,22 +20,25 @@ python -m uv run python -m cv_maker --serve --port 3000
 
 ## Multiple CVs
 
-You can keep several tailored versions side by side — one per employer, role or
-audience. Each CV is a data file in `data/`, and each can have its own language
-variants:
+Keep several tailored versions side by side — one per employer, role, audience or
+language. Each CV is a single file in `data/`, named after the CV:
 
 ```
-data/cv_data.yaml        # CV "cv_data", default language
-data/cv_data_en.yaml     # CV "cv_data", English
-data/acme.yaml           # CV "acme", default language
-data/acme_en.yaml        # CV "acme", English
+data/cv_data.yaml        # CV "cv_data"
+data/cv_data_en.yaml     # CV "cv_data_en"
+data/acme.yaml           # CV "acme"
 ```
+
+Each CV declares its own language through `meta.lang` in the file, which is what
+picks the section headers (`Work Experience` vs `Experiencia Laboral`). English is
+used when a CV does not say. Edit it under **Meta → Lang** in the fields view.
+Translations are therefore just separate CVs, free to diverge in content.
 
 In the editor, the **CV** dropdown switches between them. `+ New` starts an empty
-CV, `Duplicate` copies the current one (all its languages) under a new name —
-the quickest way to spin up a tailored version — and `Delete` removes one, keeping
-a `.bak` of every file it removes. Downloads are named after the CV and language
-(`acme_en.pdf`), so tailored versions don't overwrite each other.
+CV, `Duplicate` copies the current one under a new name — the quickest way to spin
+up a tailored version — and `Delete` removes one, keeping a `.bak` next to it.
+Downloads are named after the CV (`acme.pdf`), so versions don't overwrite each
+other.
 
 CV names may contain letters, digits, hyphens and underscores.
 
@@ -45,9 +48,9 @@ pasting into a chat with an AI assistant for feedback.
 From the command line:
 
 ```bash
-uv run python -m cv_maker --list-cvs              # show available CVs
-uv run python -m cv_maker --cv acme --lang en     # -> output/acme.pdf
-uv run python -m cv_maker --cv acme --serve       # open the editor on that CV
+uv run python -m cv_maker --list-cvs         # show available CVs
+uv run python -m cv_maker --cv acme          # -> output/acme.pdf
+uv run python -m cv_maker --cv acme --serve  # open the editor on that CV
 ```
 
 ## Tests

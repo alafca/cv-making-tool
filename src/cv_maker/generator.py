@@ -1,7 +1,6 @@
 import base64
 import io
 import re
-from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
@@ -18,10 +17,9 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 _LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
-# A "CV" is one tailored version of the resume, identified by the stem of its
-# data file: <name>.yaml holds the default language, <name>_<lang>.yaml the
-# others. The tool started with a single CV called cv_data, which stays the
-# default so existing data directories keep working untouched.
+# A "CV" is one tailored version of the resume, held in a single file named
+# after it: <name>.yaml. A CV declares its own language via meta.lang, so
+# translations are simply separate CVs rather than variants of one.
 DEFAULT_CV = "cv_data"
 
 # Conservative on purpose: the name reaches the filesystem, so anything that
@@ -44,101 +42,43 @@ def load_data(yaml_path: Path) -> dict:
     return data
 
 
-def data_path_for_lang(yaml_path: Path, lang: str, default_lang: str = "es") -> Path:
-    """Return the language-specific variant (stem_lang.suffix) if it exists."""
-    if lang == default_lang:
-        return yaml_path
-    candidate = yaml_path.with_name(f"{yaml_path.stem}_{lang}{yaml_path.suffix}")
-    return candidate if candidate.exists() else yaml_path
-
-
-def validate_cv_name(name: str, known_langs: Iterable[str] = ()) -> str:
-    """Return name unchanged if it is usable as a CV identifier, else raise.
-
-    Rejects anything that could escape the data directory, plus names ending in
-    a known language suffix: "profile_en" would be indistinguishable from the
-    English variant of a CV called "profile".
-    """
+def validate_cv_name(name: str) -> str:
+    """Return name unchanged if it is usable as a CV identifier, else raise."""
     if not isinstance(name, str) or not _CV_NAME_RE.match(name):
         raise ValueError(
             f"Invalid CV name: {name!r}. Use letters, digits, hyphens and "
             "underscores (max 64 characters, starting with a letter or digit)."
         )
-    for lang in known_langs:
-        if name.endswith(f"_{lang}"):
-            raise ValueError(
-                f"Invalid CV name: {name!r} ends in the language suffix "
-                f"'_{lang}', which would clash with a language variant."
-            )
     return name
 
 
-def cv_file_path(
-    data_dir: Path,
-    cv: str,
-    lang: str,
-    default_lang: str = "es",
-    suffix: str = ".yaml",
-) -> Path:
-    """Exact file for (cv, lang). No fallback, no existence check."""
-    stem = cv if lang == default_lang else f"{cv}_{lang}"
-    return data_dir / f"{stem}{suffix}"
+def cv_file_path(data_dir: Path, cv: str, suffix: str = ".yaml") -> Path:
+    """The single file holding this CV."""
+    return data_dir / f"{cv}{suffix}"
 
 
-def resolve_cv_path(
-    data_dir: Path,
-    cv: str,
-    lang: str,
-    default_lang: str = "es",
-    suffix: str = ".yaml",
-) -> Path:
-    """File to read for (cv, lang), falling back to the CV's base file.
+def list_cvs(data_dir: Path, suffix: str = ".yaml") -> list[str]:
+    """Names of the CVs in data_dir, sorted.
 
-    Mirrors data_path_for_lang: asking for a language a CV has no file for
-    yields its default-language data rather than an error, so a new
-    translation starts from the existing content.
+    Files whose stem is not a usable CV name are skipped, so unrelated YAML in
+    the data directory does not show up as a broken CV.
     """
-    path = cv_file_path(data_dir, cv, lang, default_lang, suffix)
-    if path.exists():
-        return path
-    return cv_file_path(data_dir, cv, default_lang, default_lang, suffix)
-
-
-def list_cvs(
-    data_dir: Path,
-    known_langs: Iterable[str],
-    default_lang: str = "es",
-    suffix: str = ".yaml",
-) -> list[dict]:
-    """Discover the CVs in data_dir as [{"name": str, "langs": [str]}].
-
-    Groups <name>.yaml and <name>_<lang>.yaml under one entry. Files whose
-    stem is not a valid CV name are ignored, so unrelated YAML in the data
-    directory does not show up as a broken CV.
-    """
-    langs = [lang for lang in known_langs if lang != default_lang]
-    found: dict[str, set[str]] = {}
-
     if not data_dir.is_dir():
         return []
-
-    for path in data_dir.glob(f"*{suffix}"):
+    names = []
+    for path in sorted(data_dir.glob(f"*{suffix}")):
         if not path.is_file():
             continue
-        stem, lang = path.stem, default_lang
-        for candidate in langs:
-            if stem.endswith(f"_{candidate}"):
-                stem, lang = stem[: -len(candidate) - 1], candidate
-                break
         try:
-            validate_cv_name(stem, known_langs)
+            names.append(validate_cv_name(path.stem))
         except ValueError:
             continue
-        found.setdefault(stem, set()).add(lang)
+    return names
 
-    return [
-        {"name": name, "langs": sorted(found[name])} for name in sorted(found)
-    ]
+
+def cv_lang(data: dict) -> str:
+    """Language a CV renders its section headers in. English unless it says."""
+    return (data.get("meta") or {}).get("lang") or "en"
 
 
 def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
@@ -161,12 +101,11 @@ def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
 
 def render_html(
     data: dict,
-    lang: str,
     show_photo: bool,
     yaml_dir: Path,
     primary_color: str | None = None,
 ) -> str:
-    headers = get_headers(lang)
+    headers = get_headers(cv_lang(data))
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     env.filters['linkify'] = linkify
     template = env.get_template("cv.html")
@@ -194,12 +133,11 @@ def generate_pdf(html_string: str, output_path: Path) -> None:
 def build_cv(
     yaml_path: Path,
     output_path: Path,
-    lang: str = "es",
     show_photo: bool = True,
 ) -> None:
     data = load_data(yaml_path)
     yaml_dir = yaml_path.resolve().parent
-    html = render_html(data, lang, show_photo, yaml_dir)
+    html = render_html(data, show_photo, yaml_dir)
     generate_pdf(html, output_path)
 
 
@@ -224,13 +162,13 @@ def _markdown_contact(contact: dict) -> str:
     return " · ".join(parts)
 
 
-def render_markdown(data: dict, lang: str) -> str:
+def render_markdown(data: dict) -> str:
     """Render the CV as markdown, for pasting into a chat or another tool.
 
     Descriptions and bullets already use [text](url), so they pass through
     unchanged rather than going through linkify.
     """
-    h = get_headers(lang)
+    h = get_headers(cv_lang(data))
     out: list[str] = []
 
     if data.get("name"):

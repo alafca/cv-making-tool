@@ -2,15 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from cv_maker.generator import (
-    build_cv,
-    cv_file_path,
-    data_path_for_lang,
-    list_cvs,
-    resolve_cv_path,
-    validate_cv_name,
-)
-from cv_maker.i18n import supported_langs
+from cv_maker.generator import build_cv, cv_file_path, list_cvs, validate_cv_name
 
 
 def main():
@@ -23,8 +15,8 @@ def main():
     )
     parser.add_argument(
         "--cv",
-        help="Name of the CV to use, e.g. --cv acme picks data/acme.yaml "
-        "(and data/acme_<lang>.yaml). Defaults to the --data file.",
+        help="Name of the CV to use, e.g. --cv acme picks data/acme.yaml. "
+        "Defaults to the --data file.",
     )
     parser.add_argument(
         "--list-cvs",
@@ -35,19 +27,6 @@ def main():
         "--output",
         type=Path,
         help="Output PDF path (default: output/cv.pdf, or output/<cv>.pdf with --cv)",
-    )
-    parser.add_argument(
-        "--lang",
-        choices=["en", "es"],
-        default="es",
-        help="Language to render, or to open the editor in (default: es)",
-    )
-    parser.add_argument(
-        "--base-lang",
-        choices=["en", "es"],
-        default="es",
-        help="Language held by the unsuffixed data file, e.g. cv_data.yaml "
-        "(default: es). Other languages live in cv_data_<lang>.yaml.",
     )
     parser.add_argument(
         "--no-photo",
@@ -69,50 +48,36 @@ def main():
 
     data_dir = args.data.parent
     suffix = args.data.suffix or ".yaml"
-    known_langs = supported_langs()
-    base_lang = args.base_lang
 
     if args.list_cvs:
-        cvs = list_cvs(data_dir, known_langs, base_lang, suffix)
+        cvs = list_cvs(data_dir, suffix)
         if not cvs:
             print(f"No CVs found in {data_dir}")
             return
-        for entry in cvs:
-            print(f"{entry['name']}  [{', '.join(entry['langs'])}]")
+        for name in cvs:
+            print(name)
         return
 
     data_path = args.data
     if args.cv:
         try:
-            cv = validate_cv_name(args.cv, known_langs)
+            cv = validate_cv_name(args.cv)
         except ValueError as exc:
             parser.error(str(exc))
-        data_path = cv_file_path(data_dir, cv, base_lang, base_lang, suffix)
+        data_path = cv_file_path(data_dir, cv, suffix)
         if not data_path.exists():
             parser.error(f"No CV named '{cv}' in {data_dir} (expected {data_path})")
 
     if args.serve:
         from cv_maker.server import run_server
 
-        # --lang picks the language the editor opens in; --base-lang describes
-        # the files on disk. Conflating them makes the editor read the wrong
-        # file for every language.
-        run_server(
-            data_path,
-            port=args.port,
-            default_lang=base_lang,
-            initial_lang=args.lang,
-        )
+        run_server(data_path, port=args.port)
     else:
-        if args.cv:
-            lang_path = resolve_cv_path(data_dir, args.cv, args.lang, base_lang, suffix)
-        else:
-            lang_path = data_path_for_lang(data_path, args.lang, base_lang)
         # Keep the historical output/cv.pdf default; only a named CV gets its
         # own filename, so tailored versions don't overwrite each other.
         default_output = Path("output") / (f"{args.cv}.pdf" if args.cv else "cv.pdf")
         output = args.output or default_output
         try:
-            build_cv(lang_path, output, args.lang, show_photo=not args.no_photo)
+            build_cv(data_path, output, show_photo=not args.no_photo)
         except (OSError, ValueError) as exc:
             sys.exit(f"Error: {exc}")
