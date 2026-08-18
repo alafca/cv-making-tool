@@ -15,6 +15,7 @@ from cv_maker.generator import (
     cv_file_path,
     list_cvs,
     render_html,
+    render_markdown,
     resolve_cv_path,
     validate_cv_name,
 )
@@ -319,6 +320,15 @@ def create_app(
             media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
+
+    @app.post("/api/markdown")
+    def markdown(req: PreviewRequest):
+        data = parse_yaml_or_raise(req.yaml)
+        try:
+            text = render_markdown(data, req.lang)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Markdown error: {exc}")
+        return Response(content=text, media_type="text/markdown; charset=utf-8")
 
     return app
 

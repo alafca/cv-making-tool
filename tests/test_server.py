@@ -11,6 +11,7 @@ from PIL import Image
 
 from cv_maker.generator import (
     cv_file_path,
+    render_markdown,
     data_path_for_lang,
     linkify,
     list_cvs,
@@ -290,6 +291,60 @@ def test_pdf_includes_publications(client):
     r = client.post("/api/pdf", json={"yaml": SAMPLE_YAML, "lang": "en"})
     assert r.status_code == 200
     assert r.content.startswith(b"%PDF")
+
+
+# --- Markdown export ---------------------------------------------------------
+
+
+def test_markdown_endpoint_renders_the_whole_cv(client):
+    r = client.post("/api/markdown", json={"yaml": SAMPLE_YAML, "lang": "en"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/markdown")
+    md = r.text
+    assert md.startswith("# Jane Doe")
+    for heading in ("## Professional Summary", "## Work Experience",
+                    "## Education", "## Publications", "## Skills",
+                    "## Languages", "## Certifications"):
+        assert heading in md, heading
+    assert "### Engineer — ACME" in md
+    assert "- Did a thing" in md
+
+
+def test_markdown_keeps_inline_links_verbatim(client):
+    """Bullets already use [text](url); markdown must not HTML-escape them."""
+    md = client.post("/api/markdown", json={"yaml": SAMPLE_YAML, "lang": "en"}).text
+    assert "[see here](https://example.com/thing)" in md
+    assert "<a href" not in md
+    assert "&lt;" not in md
+
+
+def test_markdown_publication_becomes_a_linked_entry(client):
+    md = client.post("/api/markdown", json={"yaml": SAMPLE_YAML, "lang": "en"}).text
+    assert "- **[A Paper About Testing](https://example.com/paper)**" in md
+    assert "Journal of Tests, 2024" in md
+    assert "*(co-author)*" in md
+
+
+def test_markdown_headers_are_localised(client):
+    md = client.post("/api/markdown", json={"yaml": SAMPLE_YAML, "lang": "es"}).text
+    assert "## Experiencia Laboral" in md
+    assert "## Publicaciones" in md
+
+
+def test_markdown_invalid_yaml_returns_400(client):
+    r = client.post("/api/markdown", json={"yaml": "a: [unclosed", "lang": "en"})
+    assert r.status_code == 400
+
+
+def test_markdown_contact_handles_string_and_mapping_handles(client):
+    md = client.post("/api/markdown", json={"yaml": SAMPLE_YAML, "lang": "en"}).text
+    assert "[jane-doe](https://linkedin.com/in/jane-doe)" in md  # mapping form
+    assert "[janedoe](https://github.com/janedoe)" in md  # bare-string form
+
+
+def test_render_markdown_skips_absent_sections():
+    md = render_markdown({"name": "Only A Name"}, "en")
+    assert md.strip() == "# Only A Name"
 
 
 # --- Multiple CVs -----------------------------------------------------------

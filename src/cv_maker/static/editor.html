@@ -27,6 +27,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-save { background: #4caf50; color: #fff; }
 .btn-pdf { background: #2196f3; color: #fff; }
 .btn-html { background: #ff9800; color: #fff; }
+.btn-md { background: #607d8b; color: #fff; }
 .btn-cv { background: #2a2a4a; color: #ddd; border: 1px solid #555 !important; font-weight: 500 !important; }
 .btn-cv:hover { background: #3a3a5a; }
 .btn-danger { color: #ff8a80; }
@@ -162,6 +163,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     <button class="btn-save" id="saveBtn">Save</button>
     <button class="btn-pdf" id="pdfBtn">Download PDF</button>
     <button class="btn-html" id="htmlBtn">Export HTML</button>
+    <button class="btn-md" id="mdBtn" title="Copy the whole CV as Markdown, for pasting into a chat">Copy Markdown</button>
     <span class="status" id="status"></span>
 </div>
 <div class="main">
@@ -815,6 +817,43 @@ document.getElementById('htmlBtn').addEventListener('click', async () => {
         flash('Export error: ' + e.message, true);
     }
 });
+// --- Copy the CV as Markdown (for pasting into a chat with an AI) ---
+async function copyText(text) {
+    // navigator.clipboard needs a secure context; 127.0.0.1 counts, but fall
+    // back to a hidden textarea so the button still works if it does not.
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        if (!document.execCommand('copy')) throw new Error('clipboard unavailable');
+    } finally {
+        document.body.removeChild(ta);
+    }
+}
+
+document.getElementById('mdBtn').addEventListener('click', async () => {
+    try {
+        const res = await fetch('/api/markdown', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getPayload()),
+        });
+        if (!res.ok) throw new Error(await errorDetail(res));
+        const md = await res.text();
+        await copyText(md);
+        flash('Markdown copied to clipboard!');
+    } catch (e) {
+        flash('Copy error: ' + e.message, true);
+    }
+});
+
 // --- Draggable splitter ---
 (function() {
     const splitter = document.getElementById('splitter');

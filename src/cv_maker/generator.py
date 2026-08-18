@@ -201,3 +201,103 @@ def build_cv(
     yaml_dir = yaml_path.resolve().parent
     html = render_html(data, lang, show_photo, yaml_dir)
     generate_pdf(html, output_path)
+
+
+def _markdown_contact(contact: dict) -> str:
+    """Contact line as markdown, mirroring the template's link handling."""
+    parts = []
+    for key in ("email", "location"):
+        if contact.get(key):
+            parts.append(str(contact[key]))
+    for key, base in (
+        ("linkedin", "https://linkedin.com/in/"),
+        ("github", "https://github.com/"),
+    ):
+        value = contact.get(key)
+        if not value:
+            continue
+        if isinstance(value, dict):
+            text, url = value.get("text", ""), value.get("url", "")
+        else:
+            text, url = str(value), base + str(value)
+        parts.append(f"[{text}]({url})" if url else text)
+    return " · ".join(parts)
+
+
+def render_markdown(data: dict, lang: str) -> str:
+    """Render the CV as markdown, for pasting into a chat or another tool.
+
+    Descriptions and bullets already use [text](url), so they pass through
+    unchanged rather than going through linkify.
+    """
+    h = get_headers(lang)
+    out: list[str] = []
+
+    if data.get("name"):
+        out.append(f"# {data['name']}")
+    if data.get("headline"):
+        out += ["", f"**{data['headline']}**"]
+
+    contact = _markdown_contact(data.get("contact") or {})
+    if contact:
+        out += ["", contact]
+
+    if data.get("summary"):
+        out += ["", f"## {h['summary']}", "", str(data["summary"])]
+
+    if data.get("experience"):
+        out += ["", f"## {h['experience']}"]
+        for job in data["experience"]:
+            title, company = job.get("title", ""), job.get("company", "")
+            out += ["", f"### {title} — {company}" if company else f"### {title}"]
+            meta = [str(x) for x in (job.get("location"), job.get("dates")) if x]
+            if meta:
+                out += ["", f"*{' · '.join(meta)}*"]
+            if job.get("description"):
+                out += ["", str(job["description"])]
+            if job.get("bullets"):
+                out.append("")
+                out += [f"- {b}" for b in job["bullets"]]
+
+    if data.get("education"):
+        out += ["", f"## {h['education']}"]
+        for edu in data["education"]:
+            out += ["", f"### {edu.get('institution', '')}"]
+            line = " · ".join(
+                str(x) for x in (edu.get("degree"), edu.get("dates")) if x
+            )
+            if line:
+                out += ["", line]
+
+    if data.get("publications"):
+        out += ["", f"## {h['publications']}", ""]
+        for pub in data["publications"]:
+            title = pub.get("title", "")
+            label = f"[{title}]({pub['url']})" if pub.get("url") else title
+            line = f"- **{label}**"
+            where = [str(x) for x in (pub.get("venue"), pub.get("year")) if x]
+            if where:
+                line += f" — {', '.join(where)}"
+            if pub.get("note"):
+                line += f" *({pub['note']})*"
+            out.append(line)
+
+    if data.get("skills"):
+        out += ["", f"## {h['skills']}", ""]
+        out += [
+            f"- **{s.get('category', '')}:** {s.get('entries', '')}"
+            for s in data["skills"]
+        ]
+
+    if data.get("languages"):
+        out += ["", f"## {h['languages']}", ""]
+        out += [
+            f"- {lg.get('name', '')} — {lg.get('level', '')}"
+            for lg in data["languages"]
+        ]
+
+    if data.get("certifications"):
+        out += ["", f"## {h['certifications']}", ""]
+        out += [f"- {c}" for c in data["certifications"]]
+
+    return "\n".join(out).strip() + "\n"

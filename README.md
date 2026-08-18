@@ -39,6 +39,9 @@ a `.bak` of every file it removes. Downloads are named after the CV and language
 
 CV names may contain letters, digits, hyphens and underscores.
 
+**Copy Markdown** puts the whole CV on the clipboard as markdown — handy for
+pasting into a chat with an AI assistant for feedback.
+
 From the command line:
 
 ```bash
