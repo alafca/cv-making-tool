@@ -90,7 +90,7 @@ a pre-send check or in CI.
 uv run pytest                              # unit + endpoint tests (fast)
 uv run pytest -m browser                   # drive the editor in a real browser
 CV_MAKER_HEADED=1 uv run pytest -m browser # ...and watch it happen
-uv run pytest -m ""                        # everything
+uv run pytest --browser                    # everything
 ```
 
 Browser tests drive the real editor through Playwright, using whichever

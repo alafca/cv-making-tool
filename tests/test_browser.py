@@ -266,3 +266,44 @@ def test_no_console_errors_across_a_session(page):
     page.click("#mdBtn")
     page.wait_for_timeout(1500)
     assert not page.console_errors, page.console_errors
+
+
+def test_toolbar_stays_usable_while_the_ats_panel_is_open(page):
+    """The panel is a right-hand overlay and the buttons live on the right, so
+    an untimed z-index makes Save unreachable while the report is up."""
+    page.click("#atsBtn")
+    page.wait_for_selector(".ats-finding", timeout=90_000)
+    assert page.locator("#atsPanel").is_visible()
+
+    for selector in ("#saveBtn", "#pdfBtn", "#htmlBtn", "#mdBtn", "#atsBtn"):
+        # A trial click raises if anything is intercepting the pointer.
+        page.click(selector, trial=True, timeout=5_000)
+
+    # And a real click still works.
+    page.click("#saveBtn")
+    page.wait_for_timeout(1500)
+    assert float(page.evaluate(
+        "getComputedStyle(document.getElementById('status')).opacity"
+    )) > 0.5
+
+
+def test_phone_is_editable_and_survives_a_save(page, testing_cv_dir: Path):
+    """The fields view rebuilds contact wholesale, so a contact key with no
+    input is deleted on save. phone was rendered and checked, but uneditable."""
+    assert page.input_value("#f-phone") == "+1 555 010 0134"
+
+    page.fill("#f-phone", "+1 555 010 0199")
+    page.wait_for_timeout(1500)
+    page.click("#saveBtn")
+    page.wait_for_timeout(2000)
+
+    saved = yaml.safe_load((testing_cv_dir / "testing_cv.yaml").read_text(encoding="utf-8"))
+    assert saved["contact"]["phone"] == "+1 555 010 0199"
+    assert wait_for_preview(page, "+1 555 010 0199")
+
+
+def test_ats_check_sees_the_phone_from_the_editor(page):
+    """End to end: what the browser sends must still carry contact.phone."""
+    page.click("#atsBtn")
+    page.wait_for_selector(".ats-finding", timeout=90_000)
+    assert "no phone number" not in page.inner_text("#atsBody").lower()

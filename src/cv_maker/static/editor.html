@@ -11,6 +11,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .toolbar {
     display: flex; align-items: center; gap: 12px; padding: 8px 16px;
     background: #1a1a2e; color: #fff; flex-wrap: wrap; position: relative;
+    z-index: 400;
 }
 .toolbar .brand { font-weight: 700; font-size: 16px; margin-right: 8px; }
 .toolbar label { font-size: 13px; }
@@ -31,7 +32,10 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-ats { background: #7e57c2; color: #fff; }
 
 /* ATS report: an overlay panel, so opening it never reflows the toolbar or
-   the editor panes. */
+   the editor panes. It starts below the toolbar (top is set from the bar's
+   measured height when it opens) so the buttons stay reachable while it is up;
+   the toolbar also outranks it, in case the bar wraps while the panel is
+   open. */
 .ats-panel {
     position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 92vw;
     background: #fff; box-shadow: -4px 0 20px rgba(0,0,0,0.25); z-index: 300;
@@ -367,6 +371,7 @@ function fieldsToYaml() {
 
     obj.contact = {
         email: gv('f-email'),
+        phone: gv('f-phone'),
         location: gv('f-location'),
         linkedin: { text: gv('f-linkedin-text'), url: gv('f-linkedin-url') },
         github: { text: gv('f-github-text'), url: gv('f-github-url') },
@@ -484,6 +489,7 @@ function yamlToFields(data) {
     const gh = (typeof c.github === 'object' && c.github) ? c.github : { text: c.github || '', url: c.github ? 'https://github.com/' + c.github : '' };
     html += section('Contact', `
         ${field('Email', 'text', 'f-email', c.email || '')}
+        ${field('Phone', 'text', 'f-phone', c.phone || '')}
         ${field('Location', 'text', 'f-location', c.location || '')}
         ${field('LinkedIn text', 'text', 'f-linkedin-text', li.text || '')}
         ${field('LinkedIn URL', 'text', 'f-linkedin-url', li.url || '')}
@@ -930,7 +936,16 @@ function renderAtsReport(report) {
         </div>`).join('');
 }
 
+function positionAtsPanel() {
+    const bar = document.querySelector('.toolbar').getBoundingClientRect();
+    atsPanel.style.top = bar.bottom + 'px';
+}
+window.addEventListener('resize', () => {
+    if (atsPanel.classList.contains('open')) positionAtsPanel();
+});
+
 async function runAtsCheck() {
+    positionAtsPanel();
     atsPanel.classList.add('open');
     atsBody.innerHTML = '<p>Rendering the PDF and reading it back...</p>';
     atsScoreEl.textContent = '';
@@ -1030,7 +1045,7 @@ const REPEATABLE_MAP = {
 };
 const SIMPLE_MAP = {
     name: 'f-name', headline: 'f-headline',
-    email: 'f-email', location: 'f-location',
+    email: 'f-email', phone: 'f-phone', location: 'f-location',
     linkedin: 'f-linkedin-text', github: 'f-github-text',
     summary: 'f-summary',
 };

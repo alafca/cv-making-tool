@@ -5,7 +5,7 @@ suite stays fast:
 
     uv run pytest                 # unit + endpoint tests
     uv run pytest -m browser      # drive the real editor in a real browser
-    uv run pytest -m ""           # everything
+    uv run pytest --browser       # everything
 
 They run headless unless CV_MAKER_HEADED=1 is set, and they never read or write
 the project's data/ directory: each test gets a temp copy of
@@ -37,6 +37,15 @@ _BROWSER_CANDIDATES = [
 ]
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--browser",
+        action="store_true",
+        default=False,
+        help="also run the browser tests, alongside the fast suite",
+    )
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "browser: drives the editor in a real browser (opt-in, slow)"
@@ -44,10 +53,17 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip browser tests unless they were asked for by name or marker."""
-    if config.option.markexpr and "browser" in config.option.markexpr:
+    """Skip browser tests unless they were explicitly asked for.
+
+    pytest cannot tell `-m ""` from no -m at all -- both leave markexpr empty --
+    so running everything needs its own flag rather than an empty marker
+    expression.
+    """
+    if config.getoption("--browser"):
         return
-    skip = pytest.mark.skip(reason="browser test; run with -m browser")
+    if "browser" in (config.option.markexpr or ""):
+        return
+    skip = pytest.mark.skip(reason="browser test; run with -m browser or --browser")
     for item in items:
         if "browser" in item.keywords:
             item.add_marker(skip)
