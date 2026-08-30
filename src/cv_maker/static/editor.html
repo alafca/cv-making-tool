@@ -28,6 +28,49 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .btn-pdf { background: #2196f3; color: #fff; }
 .btn-html { background: #ff9800; color: #fff; }
 .btn-md { background: #607d8b; color: #fff; }
+.btn-ats { background: #7e57c2; color: #fff; }
+
+/* ATS report: an overlay panel, so opening it never reflows the toolbar or
+   the editor panes. */
+.ats-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 92vw;
+    background: #fff; box-shadow: -4px 0 20px rgba(0,0,0,0.25); z-index: 300;
+    display: none; flex-direction: column;
+}
+.ats-panel.open { display: flex; }
+.ats-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: #1a1a2e; color: #fff; flex-shrink: 0;
+}
+.ats-head h3 { font-size: 15px; font-weight: 700; flex: 1; }
+.ats-close {
+    background: none; border: none; color: #ccc; font-size: 22px;
+    cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.ats-close:hover { color: #fff; }
+.ats-score { font-size: 20px; font-weight: 700; }
+.ats-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.ats-jd { padding: 10px 16px; border-bottom: 1px solid #e0e0e0; background: #fafafa; }
+.ats-jd label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+.ats-jd textarea {
+    width: 100%; min-height: 54px; resize: vertical; padding: 6px 8px;
+    border: 1px solid #d0d0d0; border-radius: 4px; font: inherit; font-size: 12px;
+}
+.ats-finding {
+    border-left: 4px solid #bbb; padding: 8px 10px; margin-bottom: 10px;
+    background: #fafafa; border-radius: 0 4px 4px 0;
+}
+.ats-finding .msg { font-size: 13px; font-weight: 600; color: #111; }
+.ats-finding .det { font-size: 12px; color: #555; margin-top: 4px; line-height: 1.45; }
+.ats-finding .tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+    font-weight: 700; color: #666; display: block; margin-bottom: 2px;
+}
+.sev-critical { border-left-color: #c62828; background: #fdecea; }
+.sev-high     { border-left-color: #ef6c00; background: #fff4e5; }
+.sev-medium   { border-left-color: #f9a825; background: #fffae6; }
+.sev-low      { border-left-color: #90a4ae; }
+.sev-good     { border-left-color: #2e7d32; background: #edf7ed; }
 .btn-cv { background: #2a2a4a; color: #ddd; border: 1px solid #555 !important; font-weight: 500 !important; }
 .btn-cv:hover { background: #3a3a5a; }
 .btn-danger { color: #ff8a80; }
@@ -174,7 +217,20 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     <button class="btn-pdf" id="pdfBtn">Download PDF</button>
     <button class="btn-html" id="htmlBtn">Export HTML</button>
     <button class="btn-md" id="mdBtn" title="Copy the whole CV as Markdown, for pasting into a chat">Copy Markdown</button>
+    <button class="btn-ats" id="atsBtn" title="Check how well this CV survives ATS parsing">ATS check</button>
     <div class="toast" id="status" role="status" aria-live="polite"></div>
+</div>
+<div class="ats-panel" id="atsPanel">
+    <div class="ats-head">
+        <h3>ATS check</h3>
+        <span class="ats-score" id="atsScore"></span>
+        <button class="ats-close" id="atsClose" title="Close">&times;</button>
+    </div>
+    <div class="ats-jd">
+        <label for="atsJd">Job description (optional) &mdash; compares keywords against it</label>
+        <textarea id="atsJd" placeholder="Paste a job ad here, then re-run the check."></textarea>
+    </div>
+    <div class="ats-body" id="atsBody"></div>
 </div>
 <div class="main">
     <div class="editor-pane">
@@ -846,6 +902,62 @@ document.getElementById('mdBtn').addEventListener('click', async () => {
     } catch (e) {
         flash('Copy error: ' + e.message, true);
     }
+});
+
+// --- ATS check ---
+const atsPanel = document.getElementById('atsPanel');
+const atsBody = document.getElementById('atsBody');
+const atsScoreEl = document.getElementById('atsScore');
+
+function scoreColour(score) {
+    if (score >= 85) return '#81c784';
+    if (score >= 60) return '#ffd54f';
+    return '#ff8a80';
+}
+
+function renderAtsReport(report) {
+    atsScoreEl.textContent = report.score + '/100';
+    atsScoreEl.style.color = scoreColour(report.score);
+    if (!report.findings.length) {
+        atsBody.innerHTML = '<p>No findings.</p>';
+        return;
+    }
+    atsBody.innerHTML = report.findings.map(f => `
+        <div class="ats-finding sev-${escAttr(f.severity)}">
+            <span class="tag">${esc(f.severity)} &middot; ${esc(f.check)}</span>
+            <div class="msg">${esc(f.message)}</div>
+            ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}
+        </div>`).join('');
+}
+
+async function runAtsCheck() {
+    atsPanel.classList.add('open');
+    atsBody.innerHTML = '<p>Rendering the PDF and reading it back...</p>';
+    atsScoreEl.textContent = '';
+    try {
+        const payload = getPayload();
+        const res = await fetch('/api/ats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                yaml: payload.yaml,
+                show_photo: payload.show_photo,
+                job_description: document.getElementById('atsJd').value,
+            }),
+        });
+        if (!res.ok) throw new Error(await errorDetail(res));
+        renderAtsReport(await res.json());
+    } catch (e) {
+        atsBody.innerHTML = '';
+        flash('ATS check failed: ' + e.message, true);
+    }
+}
+
+document.getElementById('atsBtn').addEventListener('click', runAtsCheck);
+document.getElementById('atsClose').addEventListener('click', () => atsPanel.classList.remove('open'));
+// Re-run against the current text whenever a job description is pasted in.
+document.getElementById('atsJd').addEventListener('change', () => {
+    if (atsPanel.classList.contains('open')) runAtsCheck();
 });
 
 // --- Draggable splitter ---

@@ -23,6 +23,13 @@ from cv_maker.i18n import supported_langs
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+class AtsRequest(BaseModel):
+    yaml: str
+    show_photo: bool = False
+    # Optional job ad to compare keywords against.
+    job_description: str = ""
+
+
 class PreviewRequest(BaseModel):
     yaml: str
     # Off by default: US-style resumes do not carry a photo.
@@ -281,6 +288,22 @@ def create_app(yaml_path: Path) -> FastAPI:
             media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
+
+    @app.post("/api/ats")
+    def ats_check(req: AtsRequest):
+        from cv_maker.ats import analyse
+
+        data = parse_yaml_or_raise(req.yaml)
+        try:
+            report = analyse(
+                data,
+                data_dir,
+                job_description=req.job_description,
+                show_photo=req.show_photo,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"ATS check failed: {exc}")
+        return report.as_dict()
 
     @app.post("/api/markdown")
     def markdown(req: PreviewRequest):

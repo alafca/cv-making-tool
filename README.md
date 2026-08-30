@@ -56,6 +56,34 @@ uv run python -m cv_maker --cv acme          # -> output/acme.pdf
 uv run python -m cv_maker --cv acme --serve  # open the editor on that CV
 ```
 
+## ATS checks
+
+Applicant tracking systems do not see the page; they see whatever text they can
+pull out of the PDF. **ATS check** in the editor, or `--ats-check` on the command
+line, renders the real PDF, extracts it with `pdfminer.six` the way a parser
+would, and reports what did not survive:
+
+```bash
+uv run python -m cv_maker --cv acme --ats-check
+uv run python -m cv_maker --cv acme --ats-check --job-description jd.txt
+```
+
+It checks four things:
+
+- **Parse-back** — do the section headings come back as whole words, are the
+  contact details in the text layer rather than only in a link, does every
+  bullet survive, is any text extracting one character at a time.
+- **Structure** — phone, email, location, dates a date regex can read,
+  acronyms spelled out at least once, page count, availability text sitting in
+  a field that will be filed as a location.
+- **Content** — bullets carrying a number, and opening with an action rather
+  than an activity.
+- **Keywords** — with a job description, which of its distinctive terms are
+  missing from the CV.
+
+The command exits non-zero if anything critical or high is found, so it works as
+a pre-send check or in CI.
+
 ## Tests
 
 ```bash

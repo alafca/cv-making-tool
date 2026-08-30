@@ -294,3 +294,15 @@ def test_report_serialises_for_the_api(data_dir):
     payload = analyse(load(GOOD_YAML), data_dir).as_dict()
     assert set(payload) == {"score", "findings", "counts"}
     assert all(set(f) == {"severity", "check", "message", "detail"} for f in payload["findings"])
+
+
+def test_job_ad_filler_does_not_form_phrases():
+    """"We need Kubernetes" must report "kubernetes", not "need kubernetes"."""
+    detail = check_keywords(load(GOOD_YAML), "We need Kubernetes and Terraform.")[0].detail
+    assert "kubernetes" in detail
+    assert "need" not in detail
+
+
+def test_deep_learning_is_still_matched_as_a_phrase():
+    detail = check_keywords(load(GOOD_YAML), "Deep learning experience required.")[0].detail
+    assert "deep learning" in detail

@@ -2,7 +2,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from cv_maker.generator import build_cv, cv_file_path, list_cvs, validate_cv_name
+from cv_maker.generator import (
+    build_cv,
+    cv_file_path,
+    list_cvs,
+    load_data,
+    validate_cv_name,
+)
 
 
 def main():
@@ -40,6 +46,16 @@ def main():
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
+        "--ats-check",
+        action="store_true",
+        help="Report how well the CV survives ATS parsing, and exit",
+    )
+    parser.add_argument(
+        "--job-description",
+        type=Path,
+        help="With --ats-check, a file holding a job ad to compare keywords against",
+    )
+    parser.add_argument(
         "--serve",
         action="store_true",
         help="Launch web editor with live preview instead of generating PDF",
@@ -73,6 +89,31 @@ def main():
         data_path = cv_file_path(data_dir, cv, suffix)
         if not data_path.exists():
             parser.error(f"No CV named '{cv}' in {data_dir} (expected {data_path})")
+
+    if args.ats_check:
+        from cv_maker.ats import analyse, format_report
+
+        job_description = ""
+        if args.job_description:
+            try:
+                job_description = args.job_description.read_text(encoding="utf-8")
+            except OSError as exc:
+                sys.exit(f"Error: {exc}")
+        try:
+            data = load_data(data_path)
+        except (OSError, ValueError) as exc:
+            sys.exit(f"Error: {exc}")
+        report = analyse(
+            data,
+            data_path.resolve().parent,
+            job_description=job_description,
+            show_photo=args.photo and not args.no_photo,
+        )
+        print(format_report(report))
+        # Non-zero on anything that would break parsing, so this is usable as a
+        # pre-send check or in CI.
+        blocking = report.counts()["critical"] + report.counts()["high"]
+        sys.exit(1 if blocking else 0)
 
     if args.serve:
         from cv_maker.server import run_server

@@ -474,6 +474,9 @@ def check_keywords(data: dict, job_description: str, limit: int = 25) -> list[Fi
         "seek", "seeking", "looking", "strong", "excellent", "good", "great",
         "using", "use", "used", "help", "helps", "make", "makes", "one", "two",
         "plus", "etc", "via", "per", "own", "get", "day", "way", "end", "top",
+        "need", "needs", "needed", "require", "requires", "required", "want",
+        "wanted", "prefer", "preferred", "familiar", "familiarity", "knowledge",
+        "understanding", "proficiency", "proficient", "hands", "solid",
     }
     jd_terms = {w for w in jd_words if len(w) > 2 and w not in stop}
     if not jd_terms:
@@ -485,11 +488,14 @@ def check_keywords(data: dict, job_description: str, limit: int = 25) -> list[Fi
     matched = jd_terms & cv_words
     missing = jd_terms - cv_words
 
-    # Where the job description used two missing terms adjacently, report the
-    # pair as one term: "vector database" reads better than "database, vector".
+    # Where the job description used two terms adjacently and the CV does not
+    # contain that pairing, report the pair: "deep learning" is the real gap
+    # even when the CV happens to say "machine learning" elsewhere.
     pairs = {
         p for p in _phrases(job_description)
-        if all(w in missing for w in p.split())
+        if p not in cv_words
+        and any(w in missing for w in p.split())
+        and all(w in jd_terms for w in p.split())
     }
     covered_by_pair = {w for p in pairs for w in p.split()}
     display = sorted(pairs | (missing - covered_by_pair))

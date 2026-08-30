@@ -560,3 +560,38 @@ def test_contact_handle_normalises_both_shapes():
     }
     assert contact_handle({"text": "alafca"}, base)["text"] == "github.com/alafca"
     assert contact_handle({"url": "https://x.dev/me"}, base)["text"] == "x.dev/me"
+
+
+# --- ATS endpoint ------------------------------------------------------------
+
+
+def test_ats_endpoint_returns_a_report(client):
+    r = client.post("/api/ats", json={"yaml": SAMPLE_YAML})
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"score", "findings", "counts"}
+    assert 0 <= body["score"] <= 100
+    assert any(f["check"] == "headings" for f in body["findings"])
+
+
+def test_ats_endpoint_accepts_a_job_description(client):
+    r = client.post(
+        "/api/ats",
+        json={"yaml": SAMPLE_YAML, "job_description": "Kubernetes and Terraform needed."},
+    )
+    keywords = [f for f in r.json()["findings"] if f["check"] == "keywords"]
+    assert keywords and "kubernetes" in keywords[0]["detail"]
+
+
+def test_ats_endpoint_without_a_job_description_skips_keywords(client):
+    r = client.post("/api/ats", json={"yaml": SAMPLE_YAML})
+    assert not [f for f in r.json()["findings"] if f["check"] == "keywords"]
+
+
+def test_ats_endpoint_rejects_invalid_yaml(client):
+    assert client.post("/api/ats", json={"yaml": "a: [unclosed"}).status_code == 400
+
+
+def test_ats_endpoint_reports_a_declared_photo_only_when_rendered(client):
+    off = client.post("/api/ats", json={"yaml": SAMPLE_YAML}).json()
+    assert any(f["check"] == "photo" for f in off["findings"])
