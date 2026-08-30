@@ -1,0 +1,76 @@
+# Fixture CV for automated tests. Entirely fictional: no real person, and
+# never the maintainer's own data, so a test run can create, edit and delete
+# freely without touching anything that matters.
+#
+# Deliberately ATS-clean, so a browser or ATS test that finds a problem has
+# found a real regression rather than a flaw in the fixture:
+#   - phone present and in international format
+#   - location free of availability text
+#   - acronyms spelled out on first use
+#   - every bullet opens with an action verb and carries a number
+#   - dates a date regex can read, with no duration text
+# tests/fixtures/testing_cv_flawed.yaml is the mirror image, for asserting that
+# the checks actually fire.
+name: Robin Testerson
+headline: AI Engineer
+contact:
+  email: robin@example.com
+  phone: "+1 555 010 0134"
+  location: Lakewood Falls, OR
+  linkedin:
+    text: robin-testerson
+    url: https://linkedin.com/in/robin-testerson
+  github:
+    text: robintest
+    url: https://github.com/robintest
+meta:
+  photo: testing_photo.png
+  lang: en
+summary: >-
+  Machine Learning (ML) engineer with six years building production systems
+  across Natural Language Processing (NLP), Computer Vision (CV) and classical
+  ML. Ships Large Language Model (LLM) and Retrieval-Augmented Generation (RAG)
+  applications end to end, from client conversation through deployment to
+  monitoring. Artificial Intelligence (AI) work in regulated settings.
+experience:
+  - title: Senior AI Engineer
+    company: Testworks
+    location: Remote
+    dates: Mar 2022 - Present
+    description: Consultancy shipping production AI for enterprise clients.
+    bullets:
+      - Built a document retrieval service over 40,000 records, cutting median lookup time from 4 minutes to 12 seconds.
+      - Led a 4-engineer rebuild of the ranking model, raising precision from 71% to 88% on a held-out set.
+      - Deployed an evaluation harness running 320 automated tests per release, catching 14 regressions before launch.
+  - title: Data Scientist
+    company: Example Analytics
+    location: Vienna, Austria
+    dates: Jan 2019 - Feb 2022
+    description: Statistical modelling for financial-services clients.
+    bullets:
+      - Shipped a fraud-detection pipeline scoring 2 million transactions daily at a 0.3% false-positive rate.
+      - Cut model training time by 60% by rewriting the feature store; [see write-up](https://example.com/writeup).
+education:
+  - institution: Example University
+    degree: MSc Mathematics
+    dates: 2016 - 2018
+publications:
+  - title: A Reproducible Benchmark for Document Retrieval
+    venue: Journal of Test Results
+    year: "2024"
+    url: https://example.com/paper
+    note: first author
+skills:
+  - category: Programming Languages
+    entries: Python, SQL, JavaScript
+  - category: ML
+    entries: scikit-learn, PyTorch, XGBoost
+  - category: DevOps
+    entries: Docker, GitHub Actions, AWS, Azure
+languages:
+  - name: English
+    level: native
+  - name: German
+    level: limited professional proficiency
+certifications:
+  - Example Cloud Practitioner

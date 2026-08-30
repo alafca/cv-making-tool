@@ -87,5 +87,17 @@ a pre-send check or in CI.
 ## Tests
 
 ```bash
-uv run pytest
+uv run pytest                              # unit + endpoint tests (fast)
+uv run pytest -m browser                   # drive the editor in a real browser
+CV_MAKER_HEADED=1 uv run pytest -m browser # ...and watch it happen
+uv run pytest -m ""                        # everything
 ```
+
+Browser tests drive the real editor through Playwright, using whichever
+Chromium-based browser is installed (Brave, Chrome or Edge). They are
+deselected by default because they take a couple of minutes.
+
+They never read or write `data/`. Each test gets a temp directory holding
+`tests/fixtures/testing_cv.yaml`, a fictional CV that is deliberately
+ATS-clean, and `testing_cv_flawed.yaml`, its mirror image where every check
+should fire. Keep the pair in sync when adding a check.

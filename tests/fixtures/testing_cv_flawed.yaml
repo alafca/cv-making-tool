@@ -1,0 +1,40 @@
+# The mirror of testing_cv.yaml: every ATS check should fire on this one.
+# Used to assert the checks actually detect problems, rather than only that a
+# clean CV passes. Keep the two in sync when adding a check.
+#
+# Deliberately wrong here:
+#   - no phone
+#   - availability text inside the location field
+#   - acronyms never spelled out
+#   - bullets with no numbers, opening with an activity not an action
+#   - a duration inside the date field, and a date with no year
+name: Dana Flawed
+headline: Engineer
+contact:
+  email: dana@example.com
+  location: Lakewood Falls, OR | Available November 2026
+meta:
+  lang: en
+summary: Engineer working on ML, NLP, RAG and LLM systems for AI products.
+experience:
+  - title: Engineer
+    company: Someplace
+    location: Remote
+    dates: Nov 2025 - Present (10+ months)
+    bullets:
+      - Development of a data pipeline for internal reporting.
+      - Deployment of several services for the team.
+      - Responsible for maintaining the analytics stack.
+  - title: Junior Engineer
+    company: Elsewhere
+    location: Remote
+    dates: recently
+    bullets:
+      - Worked on various projects across the organisation.
+education:
+  - institution: Example University
+    degree: BSc Computing
+    dates: 2018 - 2022
+skills:
+  - category: Tools
+    entries: Python, SQL
