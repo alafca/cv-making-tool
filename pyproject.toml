@@ -10,6 +10,8 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pillow",
+    # Reads back the rendered PDF the way an ATS parser does.
+    "pdfminer.six",
 ]
 
 [dependency-groups]

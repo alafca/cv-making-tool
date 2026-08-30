@@ -334,8 +334,10 @@ def test_markdown_invalid_yaml_returns_400(client):
 
 def test_markdown_contact_handles_string_and_mapping_handles(client):
     md = client.post("/api/markdown", json={"yaml": SAMPLE_YAML}).text
-    assert "[jane-doe](https://linkedin.com/in/jane-doe)" in md  # mapping form
-    assert "[janedoe](https://github.com/janedoe)" in md  # bare-string form
+    # Labels are URL-shaped in markdown too, so a CV pasted into a chat carries
+    # the same machine-readable contact details as the PDF.
+    assert "[linkedin.com/in/jane-doe](https://linkedin.com/in/jane-doe)" in md
+    assert "[github.com/janedoe](https://github.com/janedoe)" in md
 
 
 def test_render_markdown_skips_absent_sections():
@@ -488,3 +490,73 @@ def test_linkify_escapes_and_links():
     assert '<a href="https://e.com">x</a>' in result
     assert "&lt;b&gt;" in result
     assert "&amp;" in result
+
+
+# --- ATS-safe rendering ------------------------------------------------------
+
+
+def _extract(pdf_bytes: bytes) -> str:
+    """Read a PDF back the way an ATS parser does."""
+    import io
+
+    from pdfminer.high_level import extract_text
+
+    return extract_text(io.BytesIO(pdf_bytes))
+
+
+def test_section_headings_survive_pdf_extraction(client):
+    """Letter-spaced headings extract character by character under pdfminer,
+    which is the extraction layer beneath most parsers. A parser that segments
+    by heading name then finds no sections at all."""
+    english = SAMPLE_YAML.replace("  lang: es", "  lang: en")
+    pdf = client.post("/api/pdf", json={"yaml": english}).content
+    text = _extract(pdf)
+    for heading in ("PROFESSIONAL SUMMARY", "WORK EXPERIENCE", "EDUCATION", "SKILLS"):
+        assert heading in text, f"{heading!r} did not survive extraction"
+
+
+def test_contact_links_extract_as_full_urls(client):
+    """A bare handle gives a parser nothing to file under a profile field."""
+    text = _extract(client.post("/api/pdf", json={"yaml": SAMPLE_YAML}).content)
+    assert "linkedin.com/in/jane-doe" in text
+    assert "github.com/janedoe" in text
+
+
+def test_phone_is_rendered_when_present(client):
+    body = SAMPLE_YAML.replace(
+        "  email: jane@example.com", "  email: jane@example.com\n  phone: +1 555 010 0134"
+    )
+    assert "+1 555 010 0134" in _extract(client.post("/api/pdf", json={"yaml": body}).content)
+
+
+def test_summary_is_not_justified(client):
+    """Justification pads lines with space runs that break phrase matching."""
+    import re
+
+    long_summary = "Machine learning engineer. " * 20
+    body = SAMPLE_YAML.replace(
+        "summary: A summary with a [link](https://example.com) in it.",
+        f"summary: {long_summary}",
+    )
+    text = _extract(client.post("/api/pdf", json={"yaml": body}).content)
+    assert not re.search(r"\S {3,}\S", text), "justification artifacts in extracted text"
+
+
+def test_display_url_strips_scheme():
+    from cv_maker.generator import display_url
+
+    assert display_url("https://linkedin.com/in/x") == "linkedin.com/in/x"
+    assert display_url("http://www.github.com/y/") == "github.com/y"
+    assert display_url("") == ""
+
+
+def test_contact_handle_normalises_both_shapes():
+    from cv_maker.generator import contact_handle
+
+    base = "https://github.com/"
+    assert contact_handle("alafca", base) == {
+        "text": "github.com/alafca",
+        "url": "https://github.com/alafca",
+    }
+    assert contact_handle({"text": "alafca"}, base)["text"] == "github.com/alafca"
+    assert contact_handle({"url": "https://x.dev/me"}, base)["text"] == "x.dev/me"

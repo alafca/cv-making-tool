@@ -34,6 +34,37 @@ def linkify(text):
     return Markup(result)
 
 
+def display_url(url: str) -> str:
+    """A URL as a human would write it on a resume: no scheme, no trailing slash.
+
+    ATS parsers read the text layer, not the href, so a contact line showing a
+    bare handle ("afc-math") gives them nothing to file under a profile field.
+    Showing "linkedin.com/in/afc-math" is both readable and machine-usable.
+    """
+    text = str(url or "").strip()
+    for prefix in ("https://", "http://"):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    if text.startswith("www."):
+        text = text[4:]
+    return text.rstrip("/")
+
+
+def contact_handle(value, base: str) -> dict:
+    """Normalise a contact entry to {'text', 'url'} with a URL-shaped label."""
+    if isinstance(value, dict):
+        url = str(value.get("url") or "").strip()
+        if not url and value.get("text"):
+            url = base + str(value["text"]).strip()
+        label = display_url(url) if url else str(value.get("text") or "")
+    else:
+        handle = str(value or "").strip()
+        url = base + handle if handle else ""
+        label = display_url(url) if url else handle
+    return {"text": label, "url": url}
+
+
 def load_data(yaml_path: Path) -> dict:
     with open(yaml_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
@@ -108,6 +139,8 @@ def render_html(
     headers = get_headers(cv_lang(data))
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     env.filters['linkify'] = linkify
+    env.filters['display_url'] = display_url
+    env.globals['contact_handle'] = contact_handle
     template = env.get_template("cv.html")
     css = (TEMPLATES_DIR / "style.css").read_text(encoding="utf-8")
 
@@ -144,7 +177,7 @@ def build_cv(
 def _markdown_contact(contact: dict) -> str:
     """Contact line as markdown, mirroring the template's link handling."""
     parts = []
-    for key in ("email", "location"):
+    for key in ("email", "phone", "location"):
         if contact.get(key):
             parts.append(str(contact[key]))
     for key, base in (
@@ -154,11 +187,10 @@ def _markdown_contact(contact: dict) -> str:
         value = contact.get(key)
         if not value:
             continue
-        if isinstance(value, dict):
-            text, url = value.get("text", ""), value.get("url", "")
-        else:
-            text, url = str(value), base + str(value)
-        parts.append(f"[{text}]({url})" if url else text)
+        handle = contact_handle(value, base)
+        parts.append(
+            f"[{handle['text']}]({handle['url']})" if handle["url"] else handle["text"]
+        )
     return " · ".join(parts)
 
 

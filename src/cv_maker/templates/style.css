@@ -60,7 +60,6 @@ a {
     font-size: 20pt;
     font-weight: 700;
     color: var(--primary-color);
-    letter-spacing: 0.5pt;
 }
 
 .headline {
@@ -77,6 +76,9 @@ a {
 
 .contact-line a {
     color: #444;
+    /* A URL split across a line break extracts as two fragments, so no parser
+       recognises it as a profile link. */
+    white-space: nowrap;
 }
 
 .contact-icon {
@@ -97,7 +99,6 @@ h2 {
     font-size: 13pt;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.5pt;
     color: var(--primary-color);
     border-bottom: 1px solid #999;
     padding-bottom: 0.1cm;
@@ -182,5 +183,4 @@ h2 {
 /* Summary */
 .summary p {
     font-size: 10.5pt;
-    text-align: justify;
 }
