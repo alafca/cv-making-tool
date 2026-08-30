@@ -1,11 +1,17 @@
-/data
 /output/
 .dev/
 __pycache__/
 *.egg-info/
 .venv/
 .claude
-*.yaml
 
-# editor save history
+# CV data is versioned: data/*.yaml is tracked on purpose, so an edit is never
+# lost and every change is diffable. Everything derived from it is not.
+data/*.bak
 data/.history/
+
+# Binaries in the data directory (profile photo, old resumes) stay local.
+data/*.jpeg
+data/*.jpg
+data/*.png
+data/*.pdf
