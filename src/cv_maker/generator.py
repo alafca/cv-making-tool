@@ -40,6 +40,10 @@ STYLES: dict[str, dict[str, str]] = {
 DEFAULT_STYLE = "classic"
 
 _LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+# **text** for sparing emphasis; the markdown form, so exports stay markdown.
+# No whitespace just inside the asterisks, as in markdown, so "2 ** 8" is left
+# alone.
+_BOLD_RE = re.compile(r'\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*')
 
 # A "CV" is one tailored version of the resume, held in a single file named
 # after it: <name>.yaml. A CV declares its own language via meta.lang, so
@@ -52,10 +56,17 @@ _CV_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 def linkify(text):
-    """Convert [text](url) to <a> tags, escaping everything else."""
+    """Convert [text](url) to <a> and **text** to <strong>, escaping the rest."""
     escaped = str(escape(text))
     result = _LINK_RE.sub(r'<a href="\2">\1</a>', escaped)
+    result = _BOLD_RE.sub(r"<strong>\1</strong>", result)
     return Markup(result)
+
+
+def plain_text(text) -> str:
+    """The words a reader or a parser sees: markup removed, links kept as text."""
+    text = _LINK_RE.sub(r"\1", str(text))
+    return _BOLD_RE.sub(r"\1", text)
 
 
 def display_url(url: str) -> str:

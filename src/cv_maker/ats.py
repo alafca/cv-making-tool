@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from cv_maker.generator import cv_lang, render_html
+from cv_maker.generator import cv_lang, plain_text, render_html
 from cv_maker.i18n import get_headers
 
 CRITICAL = "critical"
@@ -185,10 +185,11 @@ def cv_plain_text(data: dict) -> str:
 
 
 def all_bullets(data: dict) -> list[str]:
+    """Bullet text as a reader sees it, without link or bold markup."""
     out = []
     for job in data.get("experience") or []:
         for bullet in job.get("bullets") or []:
-            out.append(str(bullet))
+            out.append(plain_text(bullet))
     return out
 
 

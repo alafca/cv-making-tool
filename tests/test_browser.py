@@ -393,3 +393,13 @@ def test_style_dropdown_does_not_move_the_buttons(page):
     page.select_option("#style", "cambria")
     page.wait_for_timeout(2500)
     assert toolbar_geometry(page) == before
+
+
+def test_bold_markup_in_a_bullet_renders_bold(page):
+    bullets = page.locator(".exp-item .exp-bullets").first
+    bullets.fill("Built a **document retrieval service** over 40,000 records.")
+    page.wait_for_timeout(2500)
+    strong = page.frame_locator("#preview").locator("li strong")
+    assert strong.count() == 1
+    assert strong.first.inner_text() == "document retrieval service"
+    assert "**" not in preview_text(page)

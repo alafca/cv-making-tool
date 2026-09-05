@@ -19,6 +19,10 @@ body {
     font-size: 10pt;
 }
 
+.entry li {
+    margin-bottom: 0.12cm;
+}
+
 h2 {
     margin-top: 0.4cm;
     margin-bottom: 0.22cm;

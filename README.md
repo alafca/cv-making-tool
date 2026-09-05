@@ -45,6 +45,13 @@ CV names may contain letters, digits, hyphens and underscores.
 The profile photo is off by default, which is the convention for US resumes.
 Tick **Photo** in the editor, or pass `--photo` on the command line, to include it.
 
+## Links and emphasis
+
+Descriptions and bullets take `[text](url)` for a link and `**text**` for bold.
+Use bold sparingly, on the result in a bullet rather than the verb or a tool
+name: a handful per page reads as signposting, more reads as keyword stuffing.
+The ATS check and the markdown export see the plain words either way.
+
 ## Styles
 
 A CV picks its typeface and spacing through `meta.style`, next to `meta.lang`:

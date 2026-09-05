@@ -31,6 +31,10 @@ h2,
     font-family: Calibri, Carlito, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+.entry li {
+    margin-bottom: 0.12cm;
+}
+
 h2 {
     margin-top: 0.4cm;
     margin-bottom: 0.22cm;

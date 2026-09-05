@@ -657,3 +657,40 @@ def test_languages_render_as_one_line_and_certifications_keep_bullets(client):
 def test_publication_titles_are_not_underlined(client):
     r = client.post("/api/preview", json={"yaml": SAMPLE_YAML}).text
     assert ".entry-title a {\n    text-decoration: none;" in r
+
+
+# --- Bold --------------------------------------------------------------------
+
+
+def test_linkify_renders_bold_and_keeps_escaping():
+    result = str(linkify("Won **a follow-on contract** for <b>&"))
+    assert "<strong>a follow-on contract</strong>" in result
+    assert "&lt;b&gt;&amp;" in result
+    # A lone pair of asterisks is not emphasis.
+    assert "<strong>" not in str(linkify("2 ** 8 and ** stray"))
+
+
+def test_bold_inside_a_link_label():
+    result = str(linkify("[**see** here](https://e.com)"))
+    assert '<a href="https://e.com"><strong>see</strong> here</a>' in result
+
+
+def test_plain_text_strips_bold_and_links():
+    from cv_maker.generator import plain_text
+
+    assert plain_text("Won **a contract** via [demo](https://e.com).") == "Won a contract via demo."
+
+
+def test_preview_renders_bold_in_bullets_and_markdown_keeps_it(client):
+    bold = SAMPLE_YAML.replace("      - Did a thing;", "      - Did **a thing**;")
+    html = client.post("/api/preview", json={"yaml": bold}).text
+    assert "<strong>a thing</strong>" in html
+    md = client.post("/api/markdown", json={"yaml": bold}).text
+    assert "- Did **a thing**;" in md
+
+
+def test_ats_checks_ignore_bold_markup():
+    from cv_maker.ats import all_bullets
+
+    data = {"experience": [{"bullets": ["**Won** a contract, 3 clients"]}]}
+    assert all_bullets(data) == ["Won a contract, 3 clients"]
