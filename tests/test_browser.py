@@ -440,3 +440,130 @@ def test_experience_dates_sit_below_the_employer_and_stay_editable(page):
 
     page.fill(".exp-item .exp-dates >> nth=0", "Jan 2021 - Present")
     assert wait_for_preview(page, "Jan 2021 - Present")
+
+
+# --- editor accessibility and polish -----------------------------------------
+
+
+def _contrast(page, selector: str) -> float:
+    """WCAG contrast of an element's text against its own background."""
+    return page.evaluate("""(sel) => {
+        const el = document.querySelector(sel);
+        const cs = getComputedStyle(el);
+        const parse = c => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+        const lum = ([r, g, b]) => {
+            const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+            return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        };
+        // Walk up until a painted background is found.
+        let bg = el, bgc = cs.backgroundColor;
+        while (bg && /rgba\(0, 0, 0, 0\)|transparent/.test(bgc)) { bg = bg.parentElement; bgc = bg ? getComputedStyle(bg).backgroundColor : 'rgb(255,255,255)'; }
+        const a = lum(parse(cs.color)), b = lum(parse(bgc));
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }""", selector)
+
+
+def test_every_field_has_a_bound_label(page):
+    """A screen reader names a field by its label; a placeholder or a nearby
+    span is not a name. Every visible control in the fields view must have one."""
+    unnamed = page.evaluate("""() => [...document.querySelectorAll('#fieldsView input, #fieldsView textarea, #fieldsView select')]
+        .filter(el => el.getBoundingClientRect().width > 0)
+        .filter(el => !(el.labels && el.labels.length) && !el.getAttribute('aria-label'))
+        .map(el => el.id || el.className)""")
+    assert unnamed == []
+    assert page.evaluate("document.querySelector('label[for=\"f-name\"]').innerText") == "Name"
+    assert page.get_attribute("#yaml", "aria-label")
+    assert page.get_attribute("#preview", "title")
+
+
+def test_keyboard_focus_is_visible_on_fields_and_yaml(page):
+    page.click("#f-name")
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.id") == "f-headline"
+    assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") != "none"
+
+    page.click("#btnYaml")
+    page.wait_for_timeout(500)
+    page.focus("#atsBtn")  # last toolbar control; the next Tab stop is the YAML pane
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.id") == "yaml"
+    assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") != "none"
+
+
+def test_toolbar_text_contrast_meets_aa(page):
+    for sel in ("#saveBtn", "#pdfBtn", "#htmlBtn", "#mdBtn", "#atsBtn", "#delCvBtn",
+                "#btnFields", "#btnYaml", ".link-hint", ".add-btn", ".remove-btn"):
+        ratio = _contrast(page, sel)
+        assert ratio >= 4.5, f"{sel}: {ratio:.2f}"
+
+
+def test_only_save_is_a_filled_action(page):
+    fills = page.evaluate("""() => [...document.querySelectorAll('.toolbar .group[aria-label="Actions"] button')]
+        .map(b => [b.id, getComputedStyle(b).backgroundColor])""")
+    filled = [i for i, c in fills if c != fills[1][1]]
+    assert filled == ["saveBtn"], fills
+
+
+def test_ats_panel_is_a_dialog_that_closes_on_escape(page):
+    page.click("#atsBtn")
+    page.wait_for_selector(".ats-finding", timeout=90_000)
+    assert page.get_attribute("#atsPanel", "role") == "dialog"
+    assert page.evaluate("document.activeElement.id") == "atsTitle"
+
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    assert not page.locator("#atsPanel").is_visible()
+    assert page.evaluate("document.activeElement.id") == "atsBtn"
+
+
+def test_splitter_resizes_with_the_keyboard(page):
+    before = page.locator(".editor-pane").bounding_box()["width"]
+    page.focus("#splitter")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_timeout(200)
+    after = page.locator(".editor-pane").bounding_box()["width"]
+    assert after < before - 20
+    assert page.get_attribute("#splitter", "role") == "separator"
+
+
+def test_row_buttons_are_named_and_large_enough(page):
+    buttons = page.locator(".exp-item .item-actions button")
+    assert buttons.count() == 6
+    names = buttons.evaluate_all("els => els.map(e => e.getAttribute('aria-label'))")
+    assert names[:3] == ["Move experience entry up", "Move experience entry down", "Remove experience entry"]
+    for box in buttons.evaluate_all("els => els.map(e => e.getBoundingClientRect())"):
+        assert box["width"] >= 24 and box["height"] >= 24
+
+
+def test_error_toast_stays_until_dismissed(page):
+    page.click("#btnYaml")
+    page.wait_for_timeout(500)
+    page.fill("#yaml", "name: [broken")
+    page.click("#btnFields")
+    page.wait_for_timeout(3500)  # a success toast would have faded by now
+    assert page.locator("#status").evaluate("el => getComputedStyle(el).opacity") == "1"
+    assert "Invalid YAML" in page.inner_text("#status")
+
+    page.click("#status .toast-close")
+    page.wait_for_timeout(400)
+    assert page.locator("#status").evaluate("el => getComputedStyle(el).opacity") == "0"
+
+
+def test_reduced_motion_removes_the_toast_slide(page):
+    page.emulate_media(reduced_motion="reduce")
+    props = page.evaluate("getComputedStyle(document.getElementById('status')).transitionProperty")
+    assert "transform" not in props
+    page.emulate_media(reduced_motion="no-preference")
+    props = page.evaluate("getComputedStyle(document.getElementById('status')).transitionProperty")
+    assert "transform" in props
+
+
+def test_page_has_landmarks_and_a_heading_outline(page):
+    assert page.locator("main").count() == 1
+    assert page.locator("h1").count() == 1
+    assert page.inner_text("h1") == "CV Maker"
+    assert page.locator("#fieldsView h2.section-title").count() >= 6
+    assert page.get_attribute("#btnFields", "aria-pressed") == "true"
+    page.click("#btnYaml")
+    assert page.get_attribute("#btnYaml", "aria-pressed") == "true"
+    assert page.get_attribute("#btnFields", "aria-pressed") == "false"

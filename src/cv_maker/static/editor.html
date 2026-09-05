@@ -6,30 +6,64 @@
 <title>CV Maker - Editor</title>
 <script src="/static/js-yaml.min.js"></script>
 <style>
+/* Colour roles. Components reference these, never a raw value, so a pair can be
+   re-measured in one place. Every text pair here meets 4.5:1 and every control
+   border 3:1 against the surface it sits on; the browser test re-checks the
+   rendered pairs. */
+:root {
+    --bar-bg: #1a1a2e;
+    --bar-raised: #2a2a4a;
+    --bar-raised-hover: #3a3a5a;
+    --bar-border: #7a7a99;
+    --bar-text: #fff;
+    --bar-text-muted: #c8c8d8;
+    --accent: #2e7d32;
+    --accent-hover: #256b29;
+    --accent-soft: #e8f5e9;
+    --accent-soft-hover: #c8e6c9;
+    --accent-border: #81c784;
+    --danger: #d32f2f;
+    --danger-hover: #b71c1c;
+    --danger-on-dark: #ff8a80;
+    --surface: #fff;
+    --surface-muted: #fafafa;
+    --surface-sunken: #f5f5f5;
+    --surface-preview: #e0e0e0;
+    --border: #e0e0e0;
+    --control-border: #8a8a8a;
+    --text: #111;
+    --text-secondary: #555;
+    --text-muted: #666;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f5f5f5; }
+body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: var(--surface-sunken); color: var(--text); }
+/* Groups are spaced 2x wider apart (24px) than the controls within them (8px),
+   so the bar reads as four clusters rather than one row of eighteen things. */
 .toolbar {
-    display: flex; align-items: center; gap: 12px; padding: 8px 16px;
-    background: #1a1a2e; color: #fff; flex-wrap: wrap; position: relative;
+    display: flex; align-items: center; gap: 8px 24px; padding: 8px 16px;
+    background: var(--bar-bg); color: var(--bar-text); flex-wrap: wrap; position: relative;
     z-index: 400;
 }
-.toolbar .brand { font-weight: 700; font-size: 16px; margin-right: 8px; }
-.toolbar label { font-size: 13px; }
+.toolbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toolbar .brand { font-weight: 700; font-size: 16px; }
+.toolbar label { font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
 .toolbar select, .toolbar input[type="color"] { cursor: pointer; }
-.toolbar select { padding: 3px 6px; border-radius: 4px; border: 1px solid #555; background: #2a2a4a; color: #fff; font-size: 13px; }
-.toolbar input[type="color"] { width: 28px; height: 28px; border: none; border-radius: 4px; background: none; }
-.toolbar input[type="checkbox"] { cursor: pointer; }
+.toolbar select { padding: 4px 6px; border-radius: 4px; border: 1px solid var(--bar-border); background: var(--bar-raised); color: var(--bar-text); font-size: 13px; }
+.toolbar input[type="color"] { width: 28px; height: 28px; border: 1px solid var(--bar-border); border-radius: 4px; background: none; padding: 1px; }
+.toolbar input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; }
 .toolbar .spacer { flex: 1; }
+/* One filled action per view: Save. Everything else is a raised neutral. */
 .toolbar button {
-    padding: 5px 14px; border: none; border-radius: 4px; font-size: 13px;
-    cursor: pointer; font-weight: 600; transition: opacity .15s;
+    padding: 5px 14px; border: 1px solid var(--bar-border); border-radius: 4px; font-size: 13px;
+    cursor: pointer; font-weight: 600; background: var(--bar-raised); color: var(--bar-text);
+    transition-property: background-color, color; transition-duration: .15s;
 }
-.toolbar button:hover { opacity: 0.85; }
-.btn-save { background: #4caf50; color: #fff; }
-.btn-pdf { background: #2196f3; color: #fff; }
-.btn-html { background: #ff9800; color: #fff; }
-.btn-md { background: #607d8b; color: #fff; }
-.btn-ats { background: #7e57c2; color: #fff; }
+.toolbar button:hover { background: var(--bar-raised-hover); }
+/* Scoped under .toolbar so they outrank the base button rule above. */
+.toolbar .btn-primary { background: var(--accent); border-color: var(--accent); }
+.toolbar .btn-primary:hover { background: var(--accent-hover); }
+.toolbar .btn-danger { color: var(--danger-on-dark); }
+.toolbar .btn-danger:hover { background: #4a2a2a; }
 
 /* ATS report: an overlay panel, so opening it never reflows the toolbar or
    the editor panes. It starts below the toolbar (top is set from the bar's
@@ -44,14 +78,14 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .ats-panel.open { display: flex; }
 .ats-head {
     display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-    background: #1a1a2e; color: #fff; flex-shrink: 0;
+    background: var(--bar-bg); color: var(--bar-text); flex-shrink: 0;
 }
-.ats-head h3 { font-size: 15px; font-weight: 700; flex: 1; }
+.ats-head h2 { font-size: 15px; font-weight: 700; flex: 1; }
 .ats-close {
-    background: none; border: none; color: #ccc; font-size: 22px;
-    cursor: pointer; line-height: 1; padding: 0 4px;
+    background: none; border: none; color: var(--bar-text-muted); font-size: 22px;
+    cursor: pointer; line-height: 1; width: 32px; height: 32px; border-radius: 4px;
 }
-.ats-close:hover { color: #fff; }
+.ats-close:hover { color: var(--bar-text); background: var(--bar-raised-hover); }
 .ats-score { font-size: 20px; font-weight: 700; }
 /* One chip per opinion, ours first. A tool with no score still gets a chip so
    the reader can see it ran, and why it has nothing to say. */
@@ -63,11 +97,11 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     display: flex; flex-direction: column; min-width: 120px; padding: 6px 10px;
     border-radius: 6px; background: #fff; border: 1px solid #d8d8e0;
 }
-.ats-chip .chip-label { font-size: 11px; color: #555; }
-.ats-chip .chip-score { font-size: 18px; font-weight: 700; }
-.ats-chip .chip-score.na { font-size: 12px; font-weight: 400; color: #777; }
-.ats-external { margin-top: 18px; padding-top: 12px; border-top: 1px solid #e0e0e0; }
-.ats-external h4 { font-size: 13px; margin: 0 0 6px; }
+.ats-chip .chip-label { font-size: 12px; color: var(--text-secondary); }
+.ats-chip .chip-score { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ats-chip .chip-score.na { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.ats-external { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ats-external h3 { font-size: 13px; margin: 0 0 6px; }
 .ats-external .note { font-size: 12px; color: #555; margin-bottom: 6px; line-height: 1.45; }
 .ats-external table { font-size: 12px; border-collapse: collapse; margin-bottom: 6px; }
 .ats-external td { padding: 1px 10px 1px 0; color: #333; vertical-align: top; }
@@ -77,7 +111,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .ats-jd label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
 .ats-jd textarea {
     width: 100%; min-height: 54px; resize: vertical; padding: 6px 8px;
-    border: 1px solid #d0d0d0; border-radius: 4px; font: inherit; font-size: 12px;
+    border: 1px solid var(--control-border); border-radius: 4px; font: inherit; font-size: 13px;
 }
 .ats-finding {
     border-left: 4px solid #bbb; padding: 8px 10px; margin-bottom: 10px;
@@ -86,21 +120,17 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .ats-finding .msg { font-size: 13px; font-weight: 600; color: #111; }
 .ats-finding .det { font-size: 12px; color: #555; margin-top: 4px; line-height: 1.45; }
 .ats-finding .tag {
-    font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
-    font-weight: 700; color: #666; display: block; margin-bottom: 2px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 2px;
 }
 .sev-critical { border-left-color: #c62828; background: #fdecea; }
 .sev-high     { border-left-color: #ef6c00; background: #fff4e5; }
 .sev-medium   { border-left-color: #f9a825; background: #fffae6; }
 .sev-low      { border-left-color: #90a4ae; }
 .sev-good     { border-left-color: #2e7d32; background: #edf7ed; }
-.btn-cv { background: #2a2a4a; color: #ddd; border: 1px solid #555 !important; font-weight: 500 !important; }
-.btn-cv:hover { background: #3a3a5a; }
-.btn-danger { color: #ff8a80; }
-.btn-danger:hover { background: #4a2a2a; }
 .page-count {
-    font-size: 12px; font-weight: 600; margin-right: 8px;
-    min-width: 58px; text-align: right;
+    font-size: 12px; font-weight: 600;
+    min-width: 58px; text-align: right; font-variant-numeric: tabular-nums;
 }
 
 /* Transient messages float below the toolbar instead of sitting inside it:
@@ -109,38 +139,50 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 .toast {
     position: absolute; top: calc(100% + 8px); right: 16px; z-index: 200;
     max-width: 340px; padding: 8px 14px; border-radius: 6px;
-    background: #2e7d32; color: #fff; font-size: 13px; font-weight: 600;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
     box-shadow: 0 4px 14px rgba(0,0,0,0.28);
-    opacity: 0; transform: translateY(-6px); pointer-events: none;
-    transition: opacity .18s ease, transform .18s ease;
+    opacity: 0; pointer-events: none;
+    transition-property: opacity; transition-duration: .18s;
+    display: flex; align-items: center; gap: 10px;
 }
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.error { background: #c62828; }
+.toast.show { opacity: 1; }
+/* Errors stay until dismissed, so they can be read and acted on. */
+.toast.error { background: var(--danger); pointer-events: auto; }
+.toast-close {
+    background: none; border: 1px solid rgba(255,255,255,0.6); color: #fff; border-radius: 4px;
+    width: 24px; height: 24px; font-size: 16px; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.toast-close:hover { background: rgba(255,255,255,0.15); }
+@media (prefers-reduced-motion: no-preference) {
+    .toast { transform: translateY(-6px); transition-property: opacity, transform; }
+    .toast.show { transform: translateY(0); }
+    .toolbar button:active, .add-btn:active { transform: scale(0.96); }
+}
 
 /* Toggle buttons */
 .view-toggle { display: flex; gap: 0; margin-left: 8px; }
-.view-toggle button {
-    padding: 4px 12px; border: 1px solid #555; font-size: 12px;
-    cursor: pointer; font-weight: 600; background: #2a2a4a; color: #aaa;
-    transition: background .15s, color .15s;
+.toolbar .view-toggle button {
+    padding: 4px 12px; border-radius: 0; font-size: 13px; color: var(--bar-text-muted);
 }
-.view-toggle button:first-child { border-radius: 4px 0 0 4px; }
-.view-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
-.view-toggle button.active { background: #4caf50; color: #fff; border-color: #4caf50; }
+.toolbar .view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.toolbar .view-toggle button:last-child { border-radius: 0 4px 4px 0; border-inline-start: none; }
+.toolbar .view-toggle button.active { background: var(--accent); color: var(--bar-text); border-color: var(--accent); }
 
 .main {
     flex: 1; display: flex; min-height: 0;
 }
 .editor-pane {
-    flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ddd;
+    flex: 1; display: flex; flex-direction: column; border-inline-end: 1px solid var(--border);
 }
 .editor-pane textarea {
     flex: 1; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 13px; line-height: 1.5; border: none; outline: none; background: #1e1e2e;
+    font-size: 13px; line-height: 1.5; border: none; background: #1e1e2e;
     color: #cdd6f4; tab-size: 2;
 }
+/* The browser's own focus ring, drawn inside so the pane edge does not clip it. */
+.editor-pane textarea:focus-visible { outline: 2px solid var(--accent-border); outline-offset: -2px; }
 .preview-pane {
-    flex: 1; overflow-y: auto; overflow-x: hidden; background: #e0e0e0;
+    flex: 1; overflow-y: auto; overflow-x: hidden; background: var(--surface-preview);
     display: flex; justify-content: center; align-items: flex-start;
     padding: 20px; position: relative;
 }
@@ -150,107 +192,114 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     transform-origin: top center; flex-shrink: 0;
 }
 .splitter {
-    width: 6px; cursor: col-resize; background: #ccc;
-    transition: background .15s;
+    width: 6px; cursor: col-resize; background: var(--control-border);
+    transition-property: background-color; transition-duration: .15s;
     flex-shrink: 0;
 }
-.splitter:hover, .splitter.dragging { background: #888; }
+.splitter:hover, .splitter.dragging, .splitter:focus-visible { background: var(--accent); }
 
 /* Fields view */
 #fieldsView {
-    flex: 1; overflow-y: auto; padding: 16px; background: #fafafa;
+    flex: 1; overflow-y: auto; padding: 16px; background: var(--surface-muted);
     display: none;
 }
 #fieldsView .section {
-    margin-bottom: 18px; background: #fff; border: 1px solid #e0e0e0;
-    border-radius: 6px; padding: 14px 16px;
+    margin-bottom: 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
 }
 #fieldsView .section-title {
-    font-size: 13px; font-weight: 700; text-transform: uppercase; color: #000;
-    margin-bottom: 10px; letter-spacing: 0.5px;
+    font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--text);
+    margin-bottom: 10px; letter-spacing: 0.06em;
 }
 #fieldsView label.field-label {
-    display: block; font-size: 12px; color: #000; margin-bottom: 3px; margin-top: 8px;
+    display: block; font-size: 12px; color: var(--text); margin-bottom: 3px; margin-top: 8px;
 }
 #fieldsView label.field-label:first-of-type { margin-top: 0; }
 #fieldsView input[type="text"],
 #fieldsView textarea,
 #fieldsView select {
-    width: 100%; padding: 7px 10px; border: 1px solid #d0d0d0; border-radius: 4px;
-    font-size: 13px; font-family: inherit; outline: none; background: #fff; color: #000;
-    transition: border-color .15s;
+    width: 100%; padding: 7px 10px; border: 1px solid var(--control-border); border-radius: 4px;
+    font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+    transition-property: border-color; transition-duration: .15s;
 }
 #fieldsView input[type="text"]:focus,
 #fieldsView textarea:focus,
-#fieldsView select:focus { border-color: #4caf50; }
+#fieldsView select:focus { border-color: var(--accent); }
 #fieldsView textarea { resize: vertical; min-height: 60px; }
 
-/* Repeatable groups */
+/* Repeatable groups. The card radius is the section radius minus its padding,
+   clamped, so the nested corners stay concentric. */
 .repeatable-item {
-    background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 5px;
+    background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px;
     padding: 12px 14px; margin-top: 8px; position: relative;
 }
 .repeatable-item .item-actions {
-    position: absolute; top: 6px; right: 8px; display: flex; gap: 4px;
+    position: absolute; top: 8px; inset-inline-end: 8px; display: flex; gap: 4px;
 }
 .repeatable-item .move-btn, .repeatable-item .remove-btn {
-    background: #e0e0e0; color: #555; border: none; border-radius: 50%;
-    width: 22px; height: 22px; font-size: 13px; cursor: pointer;
+    background: var(--surface-preview); color: var(--text-secondary); border: none; border-radius: 50%;
+    width: 28px; height: 28px; font-size: 13px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    line-height: 1; padding: 0; transition: background .15s;
+    line-height: 1; padding: 0; transition-property: background-color; transition-duration: .15s;
 }
-.repeatable-item .move-btn:hover { background: #bbb; }
-.repeatable-item .remove-btn { background: #ff5252; color: #fff; }
-.repeatable-item .remove-btn:hover { background: #d32f2f; }
+.repeatable-item .move-btn:hover { background: #bdbdbd; }
+.repeatable-item .remove-btn { background: var(--danger); color: #fff; }
+.repeatable-item .remove-btn:hover { background: var(--danger-hover); }
 .add-btn {
-    margin-top: 8px; padding: 5px 14px; background: #e8f5e9; color: #2e7d32;
-    border: 1px dashed #81c784; border-radius: 4px; cursor: pointer;
+    margin-top: 8px; padding: 6px 14px; background: var(--accent-soft); color: var(--accent);
+    border: 1px dashed var(--accent-border); border-radius: 4px; cursor: pointer;
     font-size: 12px; font-weight: 600;
 }
-.add-btn:hover { background: #c8e6c9; }
+.add-btn:hover { background: var(--accent-soft-hover); }
 .link-hint {
-    font-size: 11px; color: #888; padding: 6px 16px 0; background: #fafafa;
+    font-size: 12px; color: var(--text-muted); padding: 6px 16px 0; background: var(--surface-muted);
 }
-.link-hint code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
-@keyframes fieldFlash {
-    0% { box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.6); }
-    100% { box-shadow: 0 0 0 3px rgba(76, 175, 80, 0); }
+.link-hint code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+/* The pulse that shows which field a preview click landed on. Under reduced
+   motion the focus ring and selection carry the cue on their own. */
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes fieldFlash {
+        0% { box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.6); }
+        100% { box-shadow: 0 0 0 3px rgba(46, 125, 50, 0); }
+    }
+    .field-flash { animation: fieldFlash 1.2s ease-out; }
 }
-.field-flash { animation: fieldFlash 1.2s ease-out; }
 </style>
 </head>
 <body>
-<div class="toolbar">
-    <span class="brand">CV Maker</span>
-    <label>CV
-        <select id="cv" title="Which CV you are editing"></select>
-    </label>
-    <button class="btn-cv" id="newCvBtn" title="Create a new CV">+ New</button>
-    <button class="btn-cv" id="dupCvBtn" title="Duplicate the current CV">Duplicate</button>
-    <button class="btn-cv btn-danger" id="delCvBtn" title="Delete the current CV">Delete</button>
-    <label>Color <input type="color" id="color" value="#111111"></label>
-    <label>Style
-        <select id="style" title="Typeface and spacing; saved with the CV as meta.style"></select>
-    </label>
-    <label><input type="checkbox" id="photo"> Photo</label>
-    <div class="view-toggle">
-        <button id="btnFields" class="active" onclick="toggleView('fields')">Fields</button>
-        <button id="btnYaml" onclick="toggleView('yaml')">YAML</button>
+<header class="toolbar">
+    <h1 class="brand">CV Maker</h1>
+    <div class="group" role="group" aria-label="CV file">
+        <label>CV <select id="cv" title="Which CV you are editing"></select></label>
+        <button class="btn-cv" id="newCvBtn" title="Create a new CV">+ New</button>
+        <button class="btn-cv" id="dupCvBtn" title="Duplicate the current CV">Duplicate</button>
+        <button class="btn-cv btn-danger" id="delCvBtn" title="Delete the current CV">Delete</button>
+    </div>
+    <div class="group" role="group" aria-label="Appearance">
+        <label>Color <input type="color" id="color" value="#111111"></label>
+        <label>Style <select id="style" title="Typeface and spacing; saved with the CV as meta.style"></select></label>
+        <label><input type="checkbox" id="photo"> Photo</label>
+    </div>
+    <div class="view-toggle" role="group" aria-label="Editor view">
+        <button id="btnFields" class="active" aria-pressed="true" onclick="toggleView('fields')">Fields</button>
+        <button id="btnYaml" aria-pressed="false" onclick="toggleView('yaml')">YAML</button>
     </div>
     <span class="spacer"></span>
     <span class="page-count" id="pageCount" title="Pages in the generated PDF"></span>
-    <button class="btn-save" id="saveBtn">Save</button>
-    <button class="btn-pdf" id="pdfBtn">Download PDF</button>
-    <button class="btn-html" id="htmlBtn">Export HTML</button>
-    <button class="btn-md" id="mdBtn" title="Copy the whole CV as Markdown, for pasting into a chat">Copy Markdown</button>
-    <button class="btn-ats" id="atsBtn" title="Check how well this CV survives ATS parsing">ATS check</button>
+    <div class="group" role="group" aria-label="Actions">
+        <button class="btn-primary" id="saveBtn">Save</button>
+        <button id="pdfBtn">Download PDF</button>
+        <button id="htmlBtn">Export HTML</button>
+        <button id="mdBtn" title="Copy the whole CV as Markdown, for pasting into a chat">Copy Markdown</button>
+        <button id="atsBtn" title="Check how well this CV survives ATS parsing">ATS check</button>
+    </div>
     <div class="toast" id="status" role="status" aria-live="polite"></div>
-</div>
-<div class="ats-panel" id="atsPanel">
+</header>
+<div class="ats-panel" id="atsPanel" role="dialog" aria-labelledby="atsTitle">
     <div class="ats-head">
-        <h3>ATS check</h3>
+        <h2 id="atsTitle" tabindex="-1">ATS check</h2>
         <span class="ats-score" id="atsScore" title="Built-in checks"></span>
-        <button class="ats-close" id="atsClose" title="Close">&times;</button>
+        <button class="ats-close" id="atsClose" aria-label="Close the ATS check">&times;</button>
     </div>
     <div class="ats-scores" id="atsScores"></div>
     <div class="ats-jd">
@@ -259,17 +308,18 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     </div>
     <div class="ats-body" id="atsBody"></div>
 </div>
-<div class="main">
+<main class="main">
     <div class="editor-pane">
-        <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
+        <textarea id="yaml" spellcheck="false" aria-label="CV as YAML" placeholder="Loading YAML..."></textarea>
         <div class="link-hint" id="linkHint">In descriptions and bullets: <code>[text](url)</code> for a link, <code>**text**</code> for bold (sparingly, on results)</div>
         <div id="fieldsView"></div>
     </div>
-    <div class="splitter" id="splitter"></div>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"
+         aria-label="Resize the editor and preview panes" tabindex="0"></div>
     <div class="preview-pane" id="previewPane">
-        <iframe id="preview"></iframe>
+        <iframe id="preview" title="CV preview"></iframe>
     </div>
-</div>
+</main>
 <script>
 const yamlEl = document.getElementById('yaml');
 const previewEl = document.getElementById('preview');
@@ -325,6 +375,17 @@ function flash(msg, err) {
     statusEl.classList.toggle('error', !!err);
     statusEl.classList.add('show');
     clearTimeout(flashTimer);
+    if (err) {
+        // An error stays until dismissed: it names what to fix, and a message
+        // that fades in 2.6 seconds cannot be read, let alone acted on.
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Dismiss message');
+        close.textContent = '\u00d7';
+        close.addEventListener('click', () => statusEl.classList.remove('show'));
+        statusEl.appendChild(close);
+        return;
+    }
     // Keep the text while it fades so the box does not blank mid-transition.
     flashTimer = setTimeout(() => statusEl.classList.remove('show'), 2600);
 }
@@ -369,7 +430,7 @@ async function refreshPreview() {
         previewEl.srcdoc = html;
         updatePageCount(res.headers.get('X-Page-Count'));
     } catch (e) {
-        flash('Preview error: ' + e.message, true);
+        flash('Unable to render the preview: ' + e.message, true);
     }
 }
 
@@ -398,6 +459,8 @@ function toggleView(mode) {
         document.getElementById('linkHint').style.display = '';
         btnFields.classList.add('active');
         btnYaml.classList.remove('active');
+        btnFields.setAttribute('aria-pressed', 'true');
+        btnYaml.setAttribute('aria-pressed', 'false');
     } else {
         yamlEl.value = fieldsToYaml();
         yamlEl.style.display = '';
@@ -405,6 +468,8 @@ function toggleView(mode) {
         document.getElementById('linkHint').style.display = 'none';
         btnYaml.classList.add('active');
         btnFields.classList.remove('active');
+        btnYaml.setAttribute('aria-pressed', 'true');
+        btnFields.setAttribute('aria-pressed', 'false');
     }
     currentView = mode;
 }
@@ -554,19 +619,18 @@ function yamlToFields(data) {
     // Meta
     html += section('Meta', `
         ${field('Photo path', 'text', 'f-photo', m.photo || '')}
-        <label class="field-label">Lang</label>
+        <label class="field-label" for="f-lang">Language</label>
         <select id="f-lang" class="field-input">
             <option value="es" ${m.lang === 'es' ? 'selected' : ''}>ES</option>
             <option value="en" ${m.lang === 'en' ? 'selected' : ''}>EN</option>
         </select>
-        <label class="field-label">Style</label>
+        <label class="field-label" for="f-style">Style</label>
         <select id="f-style" class="field-input">${styleOptions(m.style)}</select>
     `);
 
     // Summary
     html += section('Summary', `
-        <label class="field-label">Summary</label>
-        <textarea id="f-summary" rows="4">${esc(data.summary || '')}</textarea>
+        ${area('Summary', '', data.summary || '', 4, 'f-summary')}
     `);
 
     // Experience
@@ -628,18 +692,31 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function section(title, inner) {
-    return `<div class="section"><div class="section-title">${title}</div>${inner}</div>`;
+    return `<div class="section"><h2 class="section-title">${title}</h2>${inner}</div>`;
 }
 
-function field(label, type, id, value) {
-    return `<label class="field-label">${label}</label><input type="${type}" id="${id}" value="${escAttr(value)}">`;
+// Every control gets an id so its label can point at it; the repeatable cards
+// have no natural id, so they draw one from a counter.
+let fieldSeq = 0;
+function fieldId(id) { return id || ('f-auto-' + (++fieldSeq)); }
+
+function field(label, type, id, value, cls) {
+    const fid = fieldId(id);
+    return `<label class="field-label" for="${fid}">${label}</label>` +
+        `<input type="${type}" id="${fid}"${cls ? ` class="${cls}"` : ''} value="${escAttr(value)}">`;
 }
 
-function itemActions() {
+function area(label, cls, value, rows, id) {
+    const fid = fieldId(id);
+    return `<label class="field-label" for="${fid}">${label}</label>` +
+        `<textarea id="${fid}"${cls ? ` class="${cls}"` : ''} rows="${rows}">${esc(value)}</textarea>`;
+}
+
+function itemActions(noun) {
     return `<div class="item-actions">
-        <button type="button" class="move-btn" onclick="moveItem(this,-1)" title="Move up">&#9650;</button>
-        <button type="button" class="move-btn" onclick="moveItem(this,1)" title="Move down">&#9660;</button>
-        <button type="button" class="remove-btn" onclick="this.closest('.repeatable-item').remove(); onFieldInput();">&times;</button>
+        <button type="button" class="move-btn" onclick="moveItem(this,-1)" aria-label="Move ${noun} up">&#9650;</button>
+        <button type="button" class="move-btn" onclick="moveItem(this,1)" aria-label="Move ${noun} down">&#9660;</button>
+        <button type="button" class="remove-btn" onclick="this.closest('.repeatable-item').remove(); onFieldInput();" aria-label="Remove ${noun}">&times;</button>
     </div>`;
 }
 
@@ -656,63 +733,60 @@ function expCard(e) {
     e = e || {};
     const bullets = (e.bullets || []).join('\n');
     return `<div class="repeatable-item exp-item">
-        ${itemActions()}
-        ${field('Title', 'text', '', e.title || '').replace(/ id=""/, ' class="exp-title"')}
-        ${field('Company', 'text', '', e.company || '').replace(/ id=""/, ' class="exp-company"')}
-        ${field('Location', 'text', '', e.location || '').replace(/ id=""/, ' class="exp-location"')}
-        ${field('Dates', 'text', '', e.dates || '').replace(/ id=""/, ' class="exp-dates"')}
-        <label class="field-label">Description</label>
-        <textarea class="exp-desc" rows="2">${esc(e.description || '')}</textarea>
-        <label class="field-label">Bullets (one per line)</label>
-        <textarea class="exp-bullets" rows="3">${esc(bullets)}</textarea>
+        ${itemActions('experience entry')}
+        ${field('Title', 'text', '', e.title || '', 'exp-title')}
+        ${field('Company', 'text', '', e.company || '', 'exp-company')}
+        ${field('Location', 'text', '', e.location || '', 'exp-location')}
+        ${field('Dates', 'text', '', e.dates || '', 'exp-dates')}
+        ${area('Description', 'exp-desc', e.description || '', 2)}
+        ${area('Bullets (one per line)', 'exp-bullets', bullets, 3)}
     </div>`;
 }
 
 function eduCard(e) {
     e = e || {};
     return `<div class="repeatable-item edu-item">
-        ${itemActions()}
-        ${field('Institution', 'text', '', e.institution || '').replace(/ id=""/, ' class="edu-inst"')}
-        ${field('Degree', 'text', '', e.degree || '').replace(/ id=""/, ' class="edu-degree"')}
-        ${field('Dates', 'text', '', e.dates || '').replace(/ id=""/, ' class="edu-dates"')}
+        ${itemActions('education entry')}
+        ${field('Institution', 'text', '', e.institution || '', 'edu-inst')}
+        ${field('Degree', 'text', '', e.degree || '', 'edu-degree')}
+        ${field('Dates', 'text', '', e.dates || '', 'edu-dates')}
     </div>`;
 }
 
 function pubCard(e) {
     e = e || {};
     return `<div class="repeatable-item pub-item">
-        ${itemActions()}
-        <label class="field-label">Title</label>
-        <textarea class="pub-title" rows="2">${esc(e.title || '')}</textarea>
-        ${field('Venue (journal, conference, preprint server)', 'text', '', e.venue || '').replace(/ id=""/, ' class="pub-venue"')}
-        ${field('Year', 'text', '', e.year === undefined ? '' : String(e.year)).replace(/ id=""/, ' class="pub-year"')}
-        ${field('URL', 'text', '', e.url || '').replace(/ id=""/, ' class="pub-url"')}
-        ${field('Note (e.g. co-author, pre-print)', 'text', '', e.note || '').replace(/ id=""/, ' class="pub-note"')}
+        ${itemActions('publication')}
+        ${area('Title', 'pub-title', e.title || '', 2)}
+        ${field('Venue (journal, conference, preprint server)', 'text', '', e.venue || '', 'pub-venue')}
+        ${field('Year', 'text', '', e.year === undefined ? '' : String(e.year), 'pub-year')}
+        ${field('URL', 'text', '', e.url || '', 'pub-url')}
+        ${field('Note (for example co-author, preprint)', 'text', '', e.note || '', 'pub-note')}
     </div>`;
 }
 
 function skillCard(e) {
     e = e || {};
     return `<div class="repeatable-item skill-item">
-        ${itemActions()}
-        ${field('Category', 'text', '', e.category || '').replace(/ id=""/, ' class="skill-cat"')}
-        ${field('Entries', 'text', '', e.entries || '').replace(/ id=""/, ' class="skill-entries"')}
+        ${itemActions('skill group')}
+        ${field('Category', 'text', '', e.category || '', 'skill-cat')}
+        ${field('Entries', 'text', '', e.entries || '', 'skill-entries')}
     </div>`;
 }
 
 function langCard(e) {
     e = e || {};
     return `<div class="repeatable-item lang-item">
-        ${itemActions()}
-        ${field('Name', 'text', '', e.name || '').replace(/ id=""/, ' class="lang-name"')}
-        ${field('Level', 'text', '', e.level || '').replace(/ id=""/, ' class="lang-level"')}
+        ${itemActions('language')}
+        ${field('Name', 'text', '', e.name || '', 'lang-name')}
+        ${field('Level', 'text', '', e.level || '', 'lang-level')}
     </div>`;
 }
 
 function certInput(val) {
     return `<div class="repeatable-item" style="padding:8px 14px;">
-        ${itemActions()}
-        <input type="text" class="cert-input" value="${escAttr(val || '')}">
+        ${itemActions('certification')}
+        <input type="text" class="cert-input" aria-label="Certification" value="${escAttr(val || '')}">
     </div>`;
 }
 
@@ -790,7 +864,7 @@ function confirmDiscard(question, el, previous) {
         await loadYaml(cvEl.value);
         toggleView('fields');
     } catch (e) {
-        flash('Load error: ' + e.message, true);
+        flash('Unable to load the CV: ' + e.message, true);
     }
 })();
 
@@ -801,7 +875,7 @@ cvEl.addEventListener('change', async () => {
         await loadYaml(cvEl.value);
         document.getElementById('delCvBtn').disabled = (cvEl.value === defaultCv);
     } catch (e) {
-        flash('Load error: ' + e.message, true);
+        flash('Unable to load the CV: ' + e.message, true);
     }
 });
 
@@ -824,7 +898,7 @@ async function createCv(copyFrom) {
         await loadYaml(cvEl.value);
         flash(copyFrom ? `Duplicated as "${d.name}"` : `Created "${d.name}"`);
     } catch (e) {
-        flash('Create error: ' + e.message, true);
+        flash('Unable to create the CV: ' + e.message, true);
     }
 }
 
@@ -843,7 +917,7 @@ document.getElementById('delCvBtn').addEventListener('click', async () => {
         await loadYaml(cvEl.value);
         flash(`Deleted "${name}"`);
     } catch (e) {
-        flash('Delete error: ' + e.message, true);
+        flash('Unable to delete the CV: ' + e.message, true);
     }
 });
 colorEl.addEventListener('input', schedulePreview);
@@ -933,9 +1007,9 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         dirty = false;
         // Saving a CV that did not exist yet adds a file, so refresh the list.
         loadCvs(cvEl.value).catch(() => {});
-        flash('Saved!');
+        flash('Saved');
     } catch (e) {
-        flash('Save error: ' + e.message, true);
+        flash('Unable to save: ' + e.message, true);
     }
 });
 
@@ -943,18 +1017,18 @@ document.getElementById('pdfBtn').addEventListener('click', async () => {
     flash('Generating PDF...');
     try {
         await downloadFrom('/api/pdf', downloadName('pdf'));
-        flash('PDF downloaded!');
+        flash('PDF downloaded');
     } catch (e) {
-        flash('PDF error: ' + e.message, true);
+        flash('Unable to generate the PDF: ' + e.message, true);
     }
 });
 
 document.getElementById('htmlBtn').addEventListener('click', async () => {
     try {
         await downloadFrom('/api/export-html', downloadName('html'));
-        flash('HTML exported!');
+        flash('HTML exported');
     } catch (e) {
-        flash('Export error: ' + e.message, true);
+        flash('Unable to export: ' + e.message, true);
     }
 });
 // --- Copy the CV as Markdown (for pasting into a chat with an AI) ---
@@ -988,9 +1062,9 @@ document.getElementById('mdBtn').addEventListener('click', async () => {
         if (!res.ok) throw new Error(await errorDetail(res));
         const md = await res.text();
         await copyText(md);
-        flash('Markdown copied to clipboard!');
+        flash('Markdown copied to the clipboard');
     } catch (e) {
-        flash('Copy error: ' + e.message, true);
+        flash('Unable to copy: ' + e.message, true);
     }
 });
 
@@ -1059,9 +1133,17 @@ window.addEventListener('resize', () => {
     if (atsPanel.classList.contains('open')) positionAtsPanel();
 });
 
+function closeAtsPanel() {
+    atsPanel.classList.remove('open');
+    document.getElementById('atsBtn').focus();
+}
+
 async function runAtsCheck() {
     positionAtsPanel();
+    const wasOpen = atsPanel.classList.contains('open');
     atsPanel.classList.add('open');
+    // Focus lands on the panel's heading, so a keyboard user arrives inside it.
+    if (!wasOpen) document.getElementById('atsTitle').focus();
     atsBody.innerHTML = '<p>Rendering the PDF and reading it back, then asking the other parsers...</p>';
     atsScoreEl.textContent = '';
     atsScoresEl.innerHTML = '';
@@ -1085,7 +1167,10 @@ async function runAtsCheck() {
 }
 
 document.getElementById('atsBtn').addEventListener('click', runAtsCheck);
-document.getElementById('atsClose').addEventListener('click', () => atsPanel.classList.remove('open'));
+document.getElementById('atsClose').addEventListener('click', closeAtsPanel);
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && atsPanel.classList.contains('open')) closeAtsPanel();
+});
 // Re-run against the current text whenever a job description is pasted in.
 document.getElementById('atsJd').addEventListener('change', () => {
     if (atsPanel.classList.contains('open')) runAtsCheck();
@@ -1098,6 +1183,30 @@ document.getElementById('atsJd').addEventListener('change', () => {
     const previewPane = document.getElementById('previewPane');
     const main = document.querySelector('.main');
 
+    function setSplit(pct) {
+        pct = Math.min(Math.max(pct, 10), 90);
+        editorPane.style.flex = 'none';
+        previewPane.style.flex = 'none';
+        editorPane.style.width = pct + '%';
+        previewPane.style.width = (100 - pct) + '%';
+        splitter.setAttribute('aria-valuenow', String(Math.round(pct)));
+        fitPreview();
+    }
+
+    function currentSplit() {
+        return editorPane.getBoundingClientRect().width / main.getBoundingClientRect().width * 100;
+    }
+
+    // Keyboard path: arrow keys move the divider by 5% of the window.
+    splitter.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') setSplit(currentSplit() - 5);
+        else if (e.key === 'ArrowRight') setSplit(currentSplit() + 5);
+        else if (e.key === 'Home') setSplit(10);
+        else if (e.key === 'End') setSplit(90);
+        else return;
+        e.preventDefault();
+    });
+
     splitter.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         splitter.setPointerCapture(e.pointerId);
@@ -1105,14 +1214,7 @@ document.getElementById('atsJd').addEventListener('change', () => {
 
         const onMove = (e) => {
             const rect = main.getBoundingClientRect();
-            const offset = e.clientX - rect.left;
-            const total = rect.width;
-            const pct = Math.min(Math.max(offset / total * 100, 10), 90);
-            editorPane.style.flex = 'none';
-            previewPane.style.flex = 'none';
-            editorPane.style.width = pct + '%';
-            previewPane.style.width = (100 - pct) + '%';
-            fitPreview();
+            setSplit((e.clientX - rect.left) / rect.width * 100);
         };
 
         const onUp = (e) => {
