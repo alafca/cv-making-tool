@@ -145,6 +145,18 @@ h2 {
     margin-bottom: 0.1cm;
 }
 
+/* Experience dates sit on their own line under the employer, flush left. */
+.entry-dates-line {
+    /* Pulls up under the employer line so the three-line header costs one
+       line, not one and a half; Calibri airy would otherwise reach page 3. */
+    margin-top: -0.1cm;
+    margin-bottom: 0.08cm;
+}
+
+.entry-dates-line .entry-dates {
+    margin-left: 0;
+}
+
 .entry-description {
     font-size: 10pt;
     color: #444;

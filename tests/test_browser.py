@@ -427,3 +427,16 @@ def test_ats_panel_shows_one_chip_per_checker(page):
     assert blocks.count() == 2
     assert "CV_MAKER_EXTERNAL_ATS" in blocks.nth(0).inner_text()
     assert not page.console_errors
+
+
+def test_experience_dates_sit_below_the_employer_and_stay_editable(page):
+    assert wait_for_preview(page, "Testworks")
+    frame = page.frame_locator("#preview")
+    title = frame.locator('[data-edit="experience.0.title"]').bounding_box()
+    company = frame.locator('[data-edit="experience.0.company"]').bounding_box()
+    dates = frame.locator('[data-edit="experience.0.dates"]').bounding_box()
+    assert title["y"] < company["y"] < dates["y"]
+    assert abs(dates["x"] - title["x"]) < 2  # flush left, not at the right margin
+
+    page.fill(".exp-item .exp-dates >> nth=0", "Jan 2021 - Present")
+    assert wait_for_preview(page, "Jan 2021 - Present")
