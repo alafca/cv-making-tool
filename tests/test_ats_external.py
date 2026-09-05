@@ -248,3 +248,17 @@ def test_ats_resume_scorer_really_runs(monkeypatch, tmp_path: Path):
     assert scorer.available, scorer.note
     assert 0 <= scorer.score <= 100
     assert "keyword_match" in scorer.breakdown
+
+
+def test_pyresume_recovers_every_job_in_the_fixture(monkeypatch, tmp_path: Path):
+    """With the dates on their own line, a Lever-style parse finds every job
+    boundary. It used to drop the second job when the dates shared the title
+    line."""
+    monkeypatch.setenv("CV_MAKER_EXTERNAL_ATS", "lever")
+    data = yaml.safe_load((FIXTURES / "testing_cv.yaml").read_text(encoding="utf-8"))
+    lever = analyse(data, tmp_path).external[0]
+    lost = lever.findings[0]
+    for job in data["experience"]:
+        assert f"job title '{job['title']}'" not in lost, lost
+        assert f"employer '{job['company']}'" not in lost, lost
+    assert lever.breakdown["experience_entries"].startswith(f"{len(data['experience'])} parsed")

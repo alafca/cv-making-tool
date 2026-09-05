@@ -695,3 +695,22 @@ def test_ats_checks_ignore_bold_markup():
 
     data = {"experience": [{"bullets": ["**Won** a contract, 3 clients"]}]}
     assert all_bullets(data) == ["Won a contract, 3 clients"]
+
+
+# --- Experience dates on their own line ----------------------------------------
+
+
+def test_experience_dates_render_below_the_employer(client):
+    """Title, employer, dates: three lines. A parser that keys on a title line
+    followed by a dates line loses the job boundary when they share a line."""
+    html = client.post("/api/preview", json={"yaml": SAMPLE_YAML}).text
+    title = html.index('data-edit="experience.0.title"')
+    company = html.index('data-edit="experience.0.company"')
+    dates = html.index('<div class="entry-dates-line"><span class="entry-dates" data-edit="experience.0.dates">2020 - Present</span></div>')
+    assert title < company < dates
+    # The title row no longer carries the dates.
+    header_end = html.index("</div>", title)
+    assert "entry-dates" not in html[title:header_end]
+    # Education keeps its single header row.
+    edu = html.index('data-edit="education.0.institution"')
+    assert 'class="entry-dates" data-edit="education.0.dates"' in html[edu:edu + 300]
