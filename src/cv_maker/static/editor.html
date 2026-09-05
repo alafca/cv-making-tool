@@ -210,6 +210,9 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
     <button class="btn-cv" id="dupCvBtn" title="Duplicate the current CV">Duplicate</button>
     <button class="btn-cv btn-danger" id="delCvBtn" title="Delete the current CV">Delete</button>
     <label>Color <input type="color" id="color" value="#111111"></label>
+    <label>Style
+        <select id="style" title="Typeface and spacing; saved with the CV as meta.style"></select>
+    </label>
     <label><input type="checkbox" id="photo"> Photo</label>
     <div class="view-toggle">
         <button id="btnFields" class="active" onclick="toggleView('fields')">Fields</button>
@@ -239,7 +242,7 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 <div class="main">
     <div class="editor-pane">
         <textarea id="yaml" spellcheck="false" placeholder="Loading YAML..."></textarea>
-        <div class="link-hint" id="linkHint">Links: use <code>[text](url)</code> in descriptions and bullets</div>
+        <div class="link-hint" id="linkHint">In descriptions and bullets: <code>[text](url)</code> for a link, <code>**text**</code> for bold (sparingly, on results)</div>
         <div id="fieldsView"></div>
     </div>
     <div class="splitter" id="splitter"></div>
@@ -252,6 +255,7 @@ const yamlEl = document.getElementById('yaml');
 const previewEl = document.getElementById('preview');
 const cvEl = document.getElementById('cv');
 const colorEl = document.getElementById('color');
+const styleEl = document.getElementById('style');
 const photoEl = document.getElementById('photo');
 const statusEl = document.getElementById('status');
 const fieldsView = document.getElementById('fieldsView');
@@ -264,6 +268,32 @@ const btnFields = document.getElementById('btnFields');
 // currentView is 'fields'.
 let currentView = 'yaml';
 let dirty = false;
+
+// Styles the server offers, from /api/config. The choice lives in the CV's
+// meta.style, so both the toolbar select and the Meta field show the same
+// value and either one writes it into the YAML.
+let styles = [{ id: 'classic', label: 'Classic', detail: '' }];
+const DEFAULT_STYLE = 'classic';
+
+function knownStyle(id) {
+    return styles.some(s => s.id === id) ? id : DEFAULT_STYLE;
+}
+
+function styleOptions(selected) {
+    const current = knownStyle(selected);
+    return styles.map(s =>
+        `<option value="${escAttr(s.id)}" title="${escAttr(s.detail || '')}"` +
+        `${s.id === current ? ' selected' : ''}>${esc(s.label)}</option>`
+    ).join('');
+}
+
+// Keep the toolbar select in step with whatever YAML is about to render.
+function syncStyleSelect(yamlText) {
+    try {
+        const data = jsyaml.load(yamlText) || {};
+        styleEl.value = knownStyle((data.meta || {}).style);
+    } catch (e) { /* invalid YAML: leave the select alone */ }
+}
 let loadedCv = null;
 let defaultCv = null;
 
@@ -307,10 +337,12 @@ previewEl.onload = () => { fitPreview(); attachPreviewClicks(); };
 async function refreshPreview() {
     const seq = ++previewSeq;
     try {
+        const payload = getPayload();
+        syncStyleSelect(payload.yaml);
         const res = await fetch('/api/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(getPayload()),
+            body: JSON.stringify(payload),
         });
         const html = await res.text();
         if (seq !== previewSeq) return; // a newer request is in flight
@@ -380,6 +412,8 @@ function fieldsToYaml() {
     obj.meta = {
         photo: gv('f-photo'),
         lang: gv('f-lang'),
+        // Classic is the default, so it is left out rather than written.
+        style: gv('f-style') === DEFAULT_STYLE ? '' : gv('f-style'),
     };
 
     obj.summary = gv('f-summary');
@@ -505,6 +539,8 @@ function yamlToFields(data) {
             <option value="es" ${m.lang === 'es' ? 'selected' : ''}>ES</option>
             <option value="en" ${m.lang === 'en' ? 'selected' : ''}>EN</option>
         </select>
+        <label class="field-label">Style</label>
+        <select id="f-style" class="field-input">${styleOptions(m.style)}</select>
     `);
 
     // Summary
@@ -726,6 +762,8 @@ function confirmDiscard(question, el, previous) {
     try {
         const cfg = await fetch('/api/config').then(r => r.json());
         defaultCv = cfg.default_cv;
+        if (Array.isArray(cfg.styles) && cfg.styles.length) styles = cfg.styles;
+        styleEl.innerHTML = styleOptions(DEFAULT_STYLE);
     } catch (e) { /* keep the select's default */ }
     try {
         await loadCvs(defaultCv);
@@ -789,6 +827,32 @@ document.getElementById('delCvBtn').addEventListener('click', async () => {
     }
 });
 colorEl.addEventListener('input', schedulePreview);
+
+styleEl.innerHTML = styleOptions(DEFAULT_STYLE);
+styleEl.addEventListener('change', () => {
+    const id = knownStyle(styleEl.value);
+    if (currentView === 'fields') {
+        const field = document.getElementById('f-style');
+        if (field) field.value = id;
+        onFieldInput();
+        return;
+    }
+    // YAML view: set meta.style in the document. Re-dumping reformats the
+    // text the same way the fields view does on every edit.
+    let data;
+    try {
+        data = jsyaml.load(yamlEl.value) || {};
+    } catch (e) {
+        flash('Invalid YAML: ' + e.message, true);
+        syncStyleSelect(yamlEl.value);
+        return;
+    }
+    data.meta = Object.assign({}, data.meta || {});
+    if (id === DEFAULT_STYLE) delete data.meta.style; else data.meta.style = id;
+    yamlEl.value = jsyaml.dump(prune(data) || {}, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+    markDirty();
+    schedulePreview();
+});
 photoEl.addEventListener('change', refreshPreview);
 window.addEventListener('beforeunload', (e) => {
     if (dirty) e.preventDefault();

@@ -595,3 +595,102 @@ def test_ats_endpoint_rejects_invalid_yaml(client):
 def test_ats_endpoint_reports_a_declared_photo_only_when_rendered(client):
     off = client.post("/api/ats", json={"yaml": SAMPLE_YAML}).json()
     assert any(f["check"] == "photo" for f in off["findings"])
+
+
+# --- Styles ------------------------------------------------------------------
+
+
+def test_cv_style_defaults_to_classic_and_ignores_unknown():
+    from cv_maker.generator import DEFAULT_STYLE, cv_style
+
+    assert cv_style({}) == DEFAULT_STYLE
+    assert cv_style({"meta": None}) == DEFAULT_STYLE
+    assert cv_style({"meta": {"style": "cambria"}}) == "cambria"
+    # A CV written against a newer tool must still render, not fail.
+    assert cv_style({"meta": {"style": "no-such-style"}}) == DEFAULT_STYLE
+
+
+def test_every_registered_style_has_a_stylesheet():
+    from cv_maker.generator import DEFAULT_STYLE, STYLES, style_css
+
+    assert style_css(DEFAULT_STYLE) == ""
+    for style in STYLES:
+        if style != DEFAULT_STYLE:
+            assert "font" in style_css(style)
+
+
+def test_config_lists_the_styles(client):
+    from cv_maker.generator import STYLES
+
+    r = client.get("/api/config")
+    styles = r.json()["styles"]
+    assert [s["id"] for s in styles] == list(STYLES)
+    assert all(s["label"] and s["detail"] for s in styles)
+
+
+def test_preview_applies_the_style_named_in_meta(client):
+    classic = client.post("/api/preview", json={"yaml": SAMPLE_YAML}).text
+    assert "Cambria" not in classic
+
+    styled = SAMPLE_YAML.replace("  lang: es\n", "  lang: es\n  style: cambria\n")
+    r = client.post("/api/preview", json={"yaml": styled})
+    assert r.status_code == 200
+    assert "Cambria" in r.text
+    assert "Experiencia Laboral" in r.text  # the rest of meta still applies
+
+
+def test_unknown_style_renders_as_classic(client):
+    styled = SAMPLE_YAML.replace("  lang: es\n", "  lang: es\n  style: comic-sans\n")
+    r = client.post("/api/preview", json={"yaml": styled})
+    assert r.status_code == 200
+    assert "Jane Doe" in r.text
+    assert "Cambria" not in r.text
+
+
+def test_languages_render_as_one_line_and_certifications_keep_bullets(client):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML}).text
+    assert '<ul class="languages-line">' in r
+    assert "<ul class=\"languages-list\">" in r  # certifications
+    assert ".languages-line li {\n    display: inline;" in r
+
+
+def test_publication_titles_are_not_underlined(client):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML}).text
+    assert ".entry-title a {\n    text-decoration: none;" in r
+
+
+# --- Bold --------------------------------------------------------------------
+
+
+def test_linkify_renders_bold_and_keeps_escaping():
+    result = str(linkify("Won **a follow-on contract** for <b>&"))
+    assert "<strong>a follow-on contract</strong>" in result
+    assert "&lt;b&gt;&amp;" in result
+    # A lone pair of asterisks is not emphasis.
+    assert "<strong>" not in str(linkify("2 ** 8 and ** stray"))
+
+
+def test_bold_inside_a_link_label():
+    result = str(linkify("[**see** here](https://e.com)"))
+    assert '<a href="https://e.com"><strong>see</strong> here</a>' in result
+
+
+def test_plain_text_strips_bold_and_links():
+    from cv_maker.generator import plain_text
+
+    assert plain_text("Won **a contract** via [demo](https://e.com).") == "Won a contract via demo."
+
+
+def test_preview_renders_bold_in_bullets_and_markdown_keeps_it(client):
+    bold = SAMPLE_YAML.replace("      - Did a thing;", "      - Did **a thing**;")
+    html = client.post("/api/preview", json={"yaml": bold}).text
+    assert "<strong>a thing</strong>" in html
+    md = client.post("/api/markdown", json={"yaml": bold}).text
+    assert "- Did **a thing**;" in md
+
+
+def test_ats_checks_ignore_bold_markup():
+    from cv_maker.ats import all_bullets
+
+    data = {"experience": [{"bullets": ["**Won** a contract, 3 clients"]}]}
+    assert all_bullets(data) == ["Won a contract, 3 clients"]

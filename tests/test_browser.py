@@ -307,3 +307,99 @@ def test_ats_check_sees_the_phone_from_the_editor(page):
     page.click("#atsBtn")
     page.wait_for_selector(".ats-finding", timeout=90_000)
     assert "no phone number" not in page.inner_text("#atsBody").lower()
+
+
+# --- styles ------------------------------------------------------------------
+
+
+def _preview_font(page) -> str:
+    return page.frame_locator("#preview").locator("body").evaluate(
+        "el => getComputedStyle(el).fontFamily"
+    )
+
+
+def test_style_dropdown_offers_every_style(page):
+    from cv_maker.generator import STYLES
+
+    options = page.locator("#style option")
+    assert options.count() == len(STYLES)
+    assert options.evaluate_all("els => els.map(e => e.value)") == list(STYLES)
+    assert page.input_value("#style") == "classic"
+    assert page.input_value("#f-style") == "classic"
+
+
+def test_choosing_a_style_restyles_the_preview_and_lands_in_the_yaml(page, testing_cv_dir: Path):
+    assert wait_for_preview(page, "Robin Testerson")
+    assert "Cambria" not in _preview_font(page)
+
+    page.select_option("#style", "cambria")
+    page.wait_for_timeout(2500)
+    assert "Cambria" in _preview_font(page)
+    assert page.input_value("#f-style") == "cambria"
+
+    page.click("#btnYaml")
+    page.wait_for_timeout(600)
+    assert "style: cambria" in page.input_value("#yaml")
+
+    page.click("#saveBtn")
+    page.wait_for_timeout(2000)
+    saved = yaml.safe_load((testing_cv_dir / "testing_cv.yaml").read_text(encoding="utf-8"))
+    assert saved["meta"]["style"] == "cambria"
+    assert saved["meta"]["lang"] == "en"  # the rest of meta survives
+    assert not page.console_errors
+
+
+def test_style_can_be_chosen_from_the_yaml_view(page):
+    page.click("#btnYaml")
+    page.wait_for_timeout(600)
+    page.select_option("#style", "segoe")
+    page.wait_for_timeout(2500)
+    assert "style: segoe" in page.input_value("#yaml")
+    assert "Segoe UI" in _preview_font(page)
+
+    page.select_option("#style", "classic")
+    page.wait_for_timeout(2500)
+    assert "style:" not in page.input_value("#yaml")  # classic is the default
+    assert "Segoe UI" not in _preview_font(page)
+
+
+def test_style_select_follows_the_loaded_cv(page, testing_cv_dir: Path):
+    path = testing_cv_dir / "testing_cv_flawed.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("meta:\n", "meta:\n  style: segoe\n", 1),
+        encoding="utf-8",
+    )
+    page.on("dialog", lambda d: d.accept())
+    page.select_option("#cv", "testing_cv_flawed")
+    page.wait_for_timeout(3000)
+    assert page.input_value("#style") == "segoe"
+    assert "Segoe UI" in _preview_font(page)
+
+    page.select_option("#cv", "testing_cv")
+    page.wait_for_timeout(3000)
+    assert page.input_value("#style") == "classic"
+
+
+def test_languages_render_on_one_line(page):
+    assert wait_for_preview(page, "LANGUAGES")
+    items = page.frame_locator("#preview").locator(".languages-line li")
+    assert items.count() >= 2
+    tops = items.evaluate_all("els => els.map(e => Math.round(e.getBoundingClientRect().top))")
+    assert len(set(tops)) == 1, tops
+
+
+def test_style_dropdown_does_not_move_the_buttons(page):
+    before = toolbar_geometry(page)
+    page.select_option("#style", "cambria")
+    page.wait_for_timeout(2500)
+    assert toolbar_geometry(page) == before
+
+
+def test_bold_markup_in_a_bullet_renders_bold(page):
+    bullets = page.locator(".exp-item .exp-bullets").first
+    bullets.fill("Built a **document retrieval service** over 40,000 records.")
+    page.wait_for_timeout(2500)
+    strong = page.frame_locator("#preview").locator("li strong")
+    assert strong.count() == 1
+    assert strong.first.inner_text() == "document retrieval service"
+    assert "**" not in preview_text(page)

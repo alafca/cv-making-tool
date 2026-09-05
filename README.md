@@ -45,6 +45,45 @@ CV names may contain letters, digits, hyphens and underscores.
 The profile photo is off by default, which is the convention for US resumes.
 Tick **Photo** in the editor, or pass `--photo` on the command line, to include it.
 
+## Links and emphasis
+
+Descriptions and bullets take `[text](url)` for a link and `**text**` for bold.
+Use bold sparingly, on the result in a bullet rather than the verb or a tool
+name: a handful per page reads as signposting, more reads as keyword stuffing.
+The ATS check and the markdown export see the plain words either way.
+
+## Styles
+
+A CV picks its typeface and spacing through `meta.style`, next to `meta.lang`:
+
+```yaml
+meta:
+  lang: en
+  style: cambria
+```
+
+The **Style** dropdown in the editor toolbar (and the Style field under Meta)
+writes that value, so the CLI and the editor render the same thing. Leave it
+out for the classic look.
+
+| id             | What it is                                                   |
+|----------------|--------------------------------------------------------------|
+| `classic`      | Calibri 10pt, the original layout                            |
+| `calibri-airy` | Calibri 10.5pt, wider margins, more space between bullets    |
+| `cambria`      | Cambria serif body with Calibri headings, lining numerals    |
+| `segoe`        | Segoe UI, a wider humanist sans, 10pt                        |
+
+Each style is one stylesheet in `src/cv_maker/templates/styles/`, appended
+after the base one, so a style only states what it changes. The fonts are the
+ones Windows ships; on other systems the sheets fall back to Carlito, Caladea
+and Noto Sans, which have the same metrics.
+
+## Your data stays local
+
+`data/` is ignored by git, on purpose: it holds names, employers, contact
+details and photos. The editor keeps its own safety copies there (`*.bak` and
+`.history/`), and a fresh clone gets an empty `data/` to start from.
+
 **Copy Markdown** puts the whole CV on the clipboard as markdown — handy for
 pasting into a chat with an AI assistant for feedback.
 
