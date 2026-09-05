@@ -23,6 +23,12 @@ import pytest
 import yaml
 from PIL import Image
 
+# The scorer runs in its own uv-managed environment and installs about 400 MB
+# on first use. No test may trigger that by accident: the suite runs with the
+# external checkers off, and the tests that need one turn it on explicitly.
+# The `external` marker is for the opt-in test that really runs the scorer.
+os.environ.setdefault("CV_MAKER_EXTERNAL_ATS", "off")
+
 FIXTURES = Path(__file__).parent / "fixtures"
 TESTING_CV = FIXTURES / "testing_cv.yaml"
 FLAWED_CV = FIXTURES / "testing_cv_flawed.yaml"
@@ -44,11 +50,20 @@ def pytest_addoption(parser):
         default=False,
         help="also run the browser tests, alongside the fast suite",
     )
+    parser.addoption(
+        "--external",
+        action="store_true",
+        default=False,
+        help="also run the test that installs and runs ats-resume-scorer",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "browser: drives the editor in a real browser (opt-in, slow)"
+    )
+    config.addinivalue_line(
+        "markers", "external: runs ats-resume-scorer in its own environment (opt-in, slow)"
     )
 
 
@@ -59,14 +74,14 @@ def pytest_collection_modifyitems(config, items):
     so running everything needs its own flag rather than an empty marker
     expression.
     """
-    if config.getoption("--browser"):
-        return
-    if "browser" in (config.option.markexpr or ""):
-        return
-    skip = pytest.mark.skip(reason="browser test; run with -m browser or --browser")
+    markexpr = config.option.markexpr or ""
+    skip_browser = pytest.mark.skip(reason="browser test; run with -m browser or --browser")
+    skip_external = pytest.mark.skip(reason="external test; run with -m external or --external")
     for item in items:
-        if "browser" in item.keywords:
-            item.add_marker(skip)
+        if "browser" in item.keywords and not (config.getoption("--browser") or "browser" in markexpr):
+            item.add_marker(skip_browser)
+        if "external" in item.keywords and not (config.getoption("--external") or "external" in markexpr):
+            item.add_marker(skip_external)
 
 
 def testing_cv_data() -> dict:

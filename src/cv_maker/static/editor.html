@@ -53,6 +53,25 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 }
 .ats-close:hover { color: #fff; }
 .ats-score { font-size: 20px; font-weight: 700; }
+/* One chip per opinion, ours first. A tool with no score still gets a chip so
+   the reader can see it ran, and why it has nothing to say. */
+.ats-scores {
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px;
+    background: #f1f1f6; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;
+}
+.ats-chip {
+    display: flex; flex-direction: column; min-width: 120px; padding: 6px 10px;
+    border-radius: 6px; background: #fff; border: 1px solid #d8d8e0;
+}
+.ats-chip .chip-label { font-size: 11px; color: #555; }
+.ats-chip .chip-score { font-size: 18px; font-weight: 700; }
+.ats-chip .chip-score.na { font-size: 12px; font-weight: 400; color: #777; }
+.ats-external { margin-top: 18px; padding-top: 12px; border-top: 1px solid #e0e0e0; }
+.ats-external h4 { font-size: 13px; margin: 0 0 6px; }
+.ats-external .note { font-size: 12px; color: #555; margin-bottom: 6px; line-height: 1.45; }
+.ats-external table { font-size: 12px; border-collapse: collapse; margin-bottom: 6px; }
+.ats-external td { padding: 1px 10px 1px 0; color: #333; vertical-align: top; }
+.ats-external ul { margin: 0 0 0 18px; padding: 0; font-size: 12px; line-height: 1.45; }
 .ats-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
 .ats-jd { padding: 10px 16px; border-bottom: 1px solid #e0e0e0; background: #fafafa; }
 .ats-jd label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
@@ -230,9 +249,10 @@ body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display
 <div class="ats-panel" id="atsPanel">
     <div class="ats-head">
         <h3>ATS check</h3>
-        <span class="ats-score" id="atsScore"></span>
+        <span class="ats-score" id="atsScore" title="Built-in checks"></span>
         <button class="ats-close" id="atsClose" title="Close">&times;</button>
     </div>
+    <div class="ats-scores" id="atsScores"></div>
     <div class="ats-jd">
         <label for="atsJd">Job description (optional) &mdash; compares keywords against it</label>
         <textarea id="atsJd" placeholder="Paste a job ad here, then re-run the check."></textarea>
@@ -985,19 +1005,50 @@ function scoreColour(score) {
     return '#ff8a80';
 }
 
+const atsScoresEl = document.getElementById('atsScores');
+
+function scoreChip(label, score, title) {
+    const shown = score === null || score === undefined
+        ? '<span class="chip-score na">no score</span>'
+        : `<span class="chip-score" style="color:${scoreColour(score)}">${score}/100</span>`;
+    return `<div class="ats-chip" title="${escAttr(title || '')}">` +
+        `<span class="chip-label">${esc(label)}</span>${shown}</div>`;
+}
+
+function breakdownTable(breakdown) {
+    const rows = Object.entries(breakdown || {}).map(([k, v]) => {
+        const val = (v && typeof v === 'object' && !Array.isArray(v))
+            ? Object.entries(v).map(([a, b]) => `${a} ${b}`).join(', ')
+            : Array.isArray(v) ? v.join(', ') : String(v);
+        return `<tr><td>${esc(k.replace(/_/g, ' '))}</td><td>${esc(val)}</td></tr>`;
+    });
+    return rows.length ? `<table>${rows.join('')}</table>` : '';
+}
+
 function renderAtsReport(report) {
     atsScoreEl.textContent = report.score + '/100';
     atsScoreEl.style.color = scoreColour(report.score);
-    if (!report.findings.length) {
-        atsBody.innerHTML = '<p>No findings.</p>';
-        return;
-    }
-    atsBody.innerHTML = report.findings.map(f => `
+
+    const external = report.external || [];
+    atsScoresEl.innerHTML = scoreChip('Built-in', report.score, "This app's own checks") +
+        external.map(e => scoreChip(e.label, e.score, e.note)).join('');
+
+    const findings = report.findings.length ? report.findings.map(f => `
         <div class="ats-finding sev-${escAttr(f.severity)}">
             <span class="tag">${esc(f.severity)} &middot; ${esc(f.check)}</span>
             <div class="msg">${esc(f.message)}</div>
             ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}
+        </div>`).join('') : '<p>No findings.</p>';
+
+    const others = external.map(e => `
+        <div class="ats-external" data-tool="${escAttr(e.id)}">
+            <h4>${esc(e.label)}: ${e.score === null ? 'no score' : e.score + '/100'}</h4>
+            ${e.note ? `<div class="note">${esc(e.note)}</div>` : ''}
+            ${breakdownTable(e.breakdown)}
+            ${e.findings && e.findings.length ? `<ul>${e.findings.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
         </div>`).join('');
+
+    atsBody.innerHTML = findings + others;
 }
 
 function positionAtsPanel() {
@@ -1011,8 +1062,9 @@ window.addEventListener('resize', () => {
 async function runAtsCheck() {
     positionAtsPanel();
     atsPanel.classList.add('open');
-    atsBody.innerHTML = '<p>Rendering the PDF and reading it back...</p>';
+    atsBody.innerHTML = '<p>Rendering the PDF and reading it back, then asking the other parsers...</p>';
     atsScoreEl.textContent = '';
+    atsScoresEl.innerHTML = '';
     try {
         const payload = getPayload();
         const res = await fetch('/api/ats', {

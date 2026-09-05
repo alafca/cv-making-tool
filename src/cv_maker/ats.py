@@ -58,12 +58,16 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     score: int = 100
     extracted_text: str = ""
+    # Second opinions from other tools, shown next to ours and never merged
+    # into it. See ats_external.
+    external: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
             "score": self.score,
             "findings": [f.as_dict() for f in self.findings],
             "counts": self.counts(),
+            "external": [e.as_dict() for e in self.external],
         }
 
     def counts(self) -> dict:
@@ -519,8 +523,13 @@ def analyse(
     yaml_dir: Path,
     job_description: str = "",
     show_photo: bool = False,
+    external: bool = True,
 ) -> Report:
-    """Render the CV, read it back, and run every check over the result."""
+    """Render the CV, read it back, and run every check over the result.
+
+    With external, the same PDF also goes through the other tools in
+    ats_external, whose scores sit beside ours in the report.
+    """
     from weasyprint import HTML
 
     lang = cv_lang(data)
@@ -535,13 +544,38 @@ def analyse(
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER[f.severity], f.check))
     score = max(0, 100 - sum(_PENALTY[f.severity] for f in findings))
-    return Report(findings=findings, score=score, extracted_text=text)
+
+    others = []
+    if external:
+        from cv_maker.ats_external import run_external
+
+        others = run_external(data, pdf_bytes, job_description)
+    return Report(findings=findings, score=score, extracted_text=text, external=others)
+
+
+def format_external(report: Report) -> list[str]:
+    """The second opinions as plain text lines, one block per tool."""
+    lines: list[str] = []
+    for other in report.external:
+        shown = f"{other.score}/100" if other.score is not None else "n/a"
+        lines += ["", f"{other.label}: {shown}"]
+        if other.note:
+            lines.append(f"       {other.note}")
+        for key, value in other.breakdown.items():
+            lines.append(f"       {key}: {value}")
+        for finding in other.findings:
+            lines.append(f"     - {finding}")
+    return lines
 
 
 def format_report(report: Report, show_good: bool = True) -> str:
     """The report as plain text, for the terminal."""
     icons = {CRITICAL: "!!", HIGH: "! ", MEDIUM: "~ ", LOW: ". ", GOOD: "ok"}
-    lines = [f"ATS score: {report.score}/100", ""]
+    lines = [f"ATS score (built-in): {report.score}/100"]
+    for other in report.external:
+        shown = f"{other.score}/100" if other.score is not None else "n/a"
+        lines.append(f"{other.label}: {shown}")
+    lines.append("")
     counts = report.counts()
     summary = ", ".join(
         f"{counts[s]} {s}" for s in (CRITICAL, HIGH, MEDIUM, LOW) if counts[s]
@@ -554,4 +588,7 @@ def format_report(report: Report, show_good: bool = True) -> str:
         lines.append(f"[{icons[finding.severity]}] {finding.check}: {finding.message}")
         if finding.detail:
             lines.append(f"       {finding.detail}")
+    if report.external:
+        lines += ["", "Second opinions"]
+        lines += format_external(report)
     return "\n".join(lines)
