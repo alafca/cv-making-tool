@@ -14,6 +14,30 @@ from cv_maker.i18n import get_headers
 PHOTO_SIZE = 160  # px (renders at 80px on 2x density)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+STYLES_DIR = TEMPLATES_DIR / "styles"
+
+# Visual styles a CV can pick through meta.style. Each id names a stylesheet in
+# templates/styles/ that is appended after the base one; "classic" is the base
+# stylesheet alone. Ordered as the editor shows them.
+STYLES: dict[str, dict[str, str]] = {
+    "classic": {
+        "label": "Classic",
+        "detail": "Calibri 10pt, the original layout",
+    },
+    "calibri-airy": {
+        "label": "Calibri airy",
+        "detail": "Calibri 10.5pt, wider margins, more space between bullets",
+    },
+    "cambria": {
+        "label": "Cambria",
+        "detail": "Cambria serif body with Calibri headings, lining numerals",
+    },
+    "segoe": {
+        "label": "Segoe UI",
+        "detail": "Segoe UI, a wider humanist sans, 10pt",
+    },
+}
+DEFAULT_STYLE = "classic"
 
 _LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
@@ -112,6 +136,23 @@ def cv_lang(data: dict) -> str:
     return (data.get("meta") or {}).get("lang") or "en"
 
 
+def cv_style(data: dict) -> str:
+    """Visual style a CV renders in. Classic unless it names a known one.
+
+    An unknown value falls back rather than failing: a CV written against a
+    newer version of the tool should still render.
+    """
+    style = (data.get("meta") or {}).get("style")
+    return style if style in STYLES else DEFAULT_STYLE
+
+
+def style_css(style: str) -> str:
+    """The stylesheet a style appends to the base one; empty for classic."""
+    if style == DEFAULT_STYLE:
+        return ""
+    return (STYLES_DIR / f"{style}.css").read_text(encoding="utf-8")
+
+
 def _photo_data_uri(photo_path: Path, yaml_dir: Path) -> str | None:
     resolved = photo_path if photo_path.is_absolute() else yaml_dir / photo_path
     resolved = resolved.resolve()
@@ -143,6 +184,9 @@ def render_html(
     env.globals['contact_handle'] = contact_handle
     template = env.get_template("cv.html")
     css = (TEMPLATES_DIR / "style.css").read_text(encoding="utf-8")
+    extra = style_css(cv_style(data))
+    if extra:
+        css = css + "\n" + extra
 
     if primary_color:
         css = f":root {{ --primary-color: {primary_color}; }}\n" + css

@@ -12,6 +12,7 @@ from weasyprint import HTML
 
 from cv_maker.generator import (
     DEFAULT_CV,
+    STYLES,
     cv_file_path,
     list_cvs,
     render_html,
@@ -188,8 +189,13 @@ def create_app(yaml_path: Path) -> FastAPI:
 
     @app.get("/api/config")
     def config():
-        # langs only populates the per-CV meta.lang selector in the fields view.
-        return {"default_cv": default_cv, "langs": list(supported_langs())}
+        # langs and styles populate the per-CV meta.lang and meta.style
+        # selectors; the chosen values travel inside the YAML itself.
+        return {
+            "default_cv": default_cv,
+            "langs": list(supported_langs()),
+            "styles": [{"id": k, **v} for k, v in STYLES.items()],
+        }
 
     @app.get("/api/cvs")
     def get_cvs():

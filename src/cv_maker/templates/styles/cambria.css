@@ -1,0 +1,41 @@
+/* Cambria: serif body with Calibri headings. The two were designed together
+   in Microsoft's ClearType collection, and Cambria's default numerals are
+   lining, so figures sit evenly on the line. Caladea is the metric-compatible
+   fallback. */
+body {
+    font-family: Cambria, Caladea, Georgia, "Times New Roman", serif;
+    font-size: 10.5pt;
+    line-height: 1.33;
+}
+
+.summary p,
+.entry li,
+.entry-description,
+.entry-subtitle,
+.skills-list li,
+.languages-line,
+.languages-list li {
+    font-size: 10.5pt;
+}
+
+.entry-dates {
+    font-size: 9.5pt;
+}
+
+.name,
+.headline,
+.contact-line,
+h2,
+.entry-title,
+.skill-category {
+    font-family: Calibri, Carlito, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+h2 {
+    margin-top: 0.4cm;
+    margin-bottom: 0.22cm;
+}
+
+.entry {
+    margin-bottom: 0.3cm;
+}
