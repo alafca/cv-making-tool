@@ -162,6 +162,7 @@ def test_interpret_scorer_maps_the_report():
     assert out.breakdown == {"keyword_match": 73, "title_match": 0}
     assert "Grade F" in out.note
     assert "0 experience" in out.note and "no contact block" in out.note
+    assert "Title | Company | Dates" in out.note
     assert out.findings == ["Include a phone number", "Add work experience section"]
 
 

@@ -319,7 +319,10 @@ def interpret_scorer(result: dict) -> ExternalScore:
     )
     note = (
         f"Grade {result.get('grade', '?')}. Rules-based, seven weighted categories. "
-        + seen + " Read the number as what a crude parser makes of the page."
+        + seen + " Its job parser only recognises lines written as "
+        "'Title | Company | Dates', so on any normal layout the title and "
+        "experience categories read zero. Weigh the keyword, format, verb "
+        "and readability rows; treat the rest as what a crude parser sees."
     )
     breakdown = {k: round(float(v)) for k, v in (result.get("detailed_breakdown") or {}).items()}
     findings = [str(r) for r in result.get("recommendations") or []]
