@@ -5,13 +5,9 @@ __pycache__/
 .venv/
 .claude
 
-# CV data is versioned: data/*.yaml is tracked on purpose, so an edit is never
-# lost and every change is diffable. Everything derived from it is not.
-data/*.bak
-data/.history/
-
-# Binaries in the data directory (profile photo, old resumes) stay local.
-data/*.jpeg
-data/*.jpg
-data/*.png
-data/*.pdf
+# The CV data is personal and stays out of git entirely: names, employers,
+# contact details and photos have no place in a shared history. The editor
+# keeps its own backups (data/*.bak and data/.history/). Only the placeholder
+# that makes the directory exist on a fresh clone is tracked.
+data/*
+!data/.gitkeep
