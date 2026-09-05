@@ -286,13 +286,13 @@ def test_score_drops_with_severity():
 
 def test_format_report_is_plain_text(data_dir):
     text = format_report(analyse(load(GOOD_YAML), data_dir))
-    assert "ATS score:" in text
+    assert "ATS score (built-in):" in text
     assert "headings" in text
 
 
 def test_report_serialises_for_the_api(data_dir):
     payload = analyse(load(GOOD_YAML), data_dir).as_dict()
-    assert set(payload) == {"score", "findings", "counts"}
+    assert set(payload) == {"score", "findings", "counts", "external"}
     assert all(set(f) == {"severity", "check", "message", "detail"} for f in payload["findings"])
 
 

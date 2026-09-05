@@ -403,3 +403,27 @@ def test_bold_markup_in_a_bullet_renders_bold(page):
     assert strong.count() == 1
     assert strong.first.inner_text() == "document retrieval service"
     assert "**" not in preview_text(page)
+
+
+# --- second opinions ----------------------------------------------------------
+
+
+def test_ats_panel_shows_one_chip_per_checker(page):
+    """Three scores side by side: ours, the Lever-style parse, and
+    ats-resume-scorer. The suite runs with the external checkers off, so the
+    two outside chips say why they have no score rather than vanish."""
+    page.click("#atsBtn")
+    page.wait_for_selector(".ats-finding", timeout=90_000)
+
+    chips = page.locator(".ats-chip")
+    assert chips.count() == 3
+    labels = chips.locator(".chip-label").all_inner_texts()
+    assert labels == ["Built-in", "Lever-style parse", "ats-resume-scorer"]
+    assert "/100" in chips.nth(0).inner_text()
+    assert "no score" in chips.nth(1).inner_text()
+    assert "no score" in chips.nth(2).inner_text()
+
+    blocks = page.locator(".ats-external")
+    assert blocks.count() == 2
+    assert "CV_MAKER_EXTERNAL_ATS" in blocks.nth(0).inner_text()
+    assert not page.console_errors

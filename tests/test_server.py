@@ -569,7 +569,8 @@ def test_ats_endpoint_returns_a_report(client):
     r = client.post("/api/ats", json={"yaml": SAMPLE_YAML})
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"score", "findings", "counts"}
+    assert set(body) == {"score", "findings", "counts", "external"}
+    assert [e["id"] for e in body["external"]] == ["lever", "scorer"]
     assert 0 <= body["score"] <= 100
     assert any(f["check"] == "headings" for f in body["findings"])
 

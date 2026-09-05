@@ -107,7 +107,26 @@ uv run python -m cv_maker --cv acme --ats-check
 uv run python -m cv_maker --cv acme --ats-check --job-description jd.txt
 ```
 
-It checks four things:
+It shows three scores side by side and never blends them:
+
+- **Built-in**, this app's own checks, described below.
+- **Lever-style parse**, from [pyresume](https://github.com/wespiper/pyresume),
+  a parser that approximates Lever's ATS. It has no score of its own, so the
+  number is how much of your YAML it got back, weighted towards contact
+  details and job titles, with a list of what it lost.
+- **ats-resume-scorer**, from the
+  [PyPI package](https://pypi.org/project/ats-resume-scorer/) of that name: a
+  rules-based scorer with seven weighted categories and a letter grade. Three
+  of them score against a job description, so it only runs when you give one.
+  Its own parser is crude, and the panel says what it found; read the number
+  as what a weak parser makes of the page. It pins a numpy with no wheel for
+  Python 3.13, so it runs in its own Python 3.12 environment through `uv`.
+  The first check installs about 400 MB; later checks take about ten seconds.
+
+`CV_MAKER_EXTERNAL_ATS=lever` skips the scorer, `off` skips both. The test
+suite runs with `off`; `uv run pytest --external` also runs the scorer once.
+
+The built-in check looks at four things:
 
 - **Parse-back** — do the section headings come back as whole words, are the
   contact details in the text layer rather than only in a link, does every
