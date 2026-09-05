@@ -36,7 +36,10 @@ experience:
   - title: Senior AI Engineer
     company: Testworks
     location: Remote
-    dates: Mar 2022 - Present
+    # Not March or May: pyresume's degree heuristic matches "MA" inside those
+    # month names and splits the dates line off as a degree, which would make
+    # the Lever-style parse test measure that bug instead of the layout.
+    dates: Apr 2022 - Present
     description: Consultancy shipping production AI for enterprise clients.
     bullets:
       - Built a document retrieval service over 40,000 records, cutting median lookup time from 4 minutes to 12 seconds.

@@ -41,11 +41,17 @@
         {% for job in data.experience %}
         {% set job_idx = loop.index0 %}
         <div class="entry">
+            {# Title, employer, dates: three lines, on purpose. With the dates on
+               the title line, a parser that keys on "title then dates" reads the
+               year as part of the title and never finds the job boundary; a
+               Lever-style parse dropped one job in four that way. #}
             <div class="entry-header">
                 <span class="entry-title" data-edit="experience.{{ job_idx }}.title">{{ job.title }}</span>
-                <span class="entry-dates" data-edit="experience.{{ job_idx }}.dates">{{ job.dates }}</span>
             </div>
             <div class="entry-subtitle"><span data-edit="experience.{{ job_idx }}.company">{{ job.company }}</span>{% if job.location %}, <span data-edit="experience.{{ job_idx }}.location">{{ job.location }}</span>{% endif %}</div>
+            {% if job.dates %}
+            <div class="entry-dates-line"><span class="entry-dates" data-edit="experience.{{ job_idx }}.dates">{{ job.dates }}</span></div>
+            {% endif %}
             {% if job.description %}
             <div class="entry-description" data-edit="experience.{{ job_idx }}.description">{{ job.description | linkify }}</div>
             {% endif %}
