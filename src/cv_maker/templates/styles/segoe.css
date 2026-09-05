@@ -1,0 +1,33 @@
+/* Segoe UI: a wider humanist sans. Larger on the page than Calibri at the
+   same point size, so the body sits a quarter point smaller. */
+body {
+    font-family: "Segoe UI", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.36;
+}
+
+.entry li,
+.entry-description,
+.entry-subtitle,
+.skills-list li,
+.languages-line,
+.languages-list li {
+    font-size: 9.75pt;
+}
+
+.summary p {
+    font-size: 10pt;
+}
+
+.entry li {
+    margin-bottom: 0.12cm;
+}
+
+h2 {
+    margin-top: 0.4cm;
+    margin-bottom: 0.22cm;
+}
+
+.entry {
+    margin-bottom: 0.3cm;
+}

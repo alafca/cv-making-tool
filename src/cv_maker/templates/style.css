@@ -1,0 +1,213 @@
+:root {
+    --primary-color: #111;
+}
+
+@page {
+    size: A4;
+    margin: 1.5cm 2cm;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    /* Carlito is metric-compatible with Calibri, for machines without it. */
+    font-family: Calibri, Carlito, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.4;
+    color: #222;
+}
+
+a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.contact-line a,
+.header a {
+    text-decoration: none;
+}
+
+/* A publication title is already bold and in the accent colour; underlining
+   it as well makes a two-line title the heaviest thing on the page. */
+.entry-title a {
+    text-decoration: none;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 0.6cm;
+}
+
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1cm;
+    margin-bottom: 0.3cm;
+}
+
+.photo {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    height: 80px;
+    min-height: 80px;
+    max-height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    overflow: hidden;
+}
+
+.name {
+    font-size: 20pt;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.headline {
+    font-size: 11pt;
+    font-style: italic;
+    color: #444;
+    margin-bottom: 0.15cm;
+}
+
+.contact-line {
+    font-size: 9.5pt;
+    color: #444;
+}
+
+.contact-line a {
+    color: #444;
+    /* A URL split across a line break extracts as two fragments, so no parser
+       recognises it as a profile link. */
+    white-space: nowrap;
+}
+
+.contact-icon {
+    width: 10px;
+    height: 10px;
+    vertical-align: middle;
+    margin-right: 2px;
+    display: inline-block;
+}
+
+@media screen {
+    [data-edit] { cursor: pointer; transition: background 0.15s; }
+    [data-edit]:hover { background: rgba(255, 230, 120, 0.45); }
+}
+
+/* Sections */
+h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--primary-color);
+    border-bottom: 1px solid #999;
+    padding-bottom: 0.1cm;
+    margin-top: 0.5cm;
+    margin-bottom: 0.3cm;
+}
+
+/* Experience / Education entries */
+.entry {
+    margin-bottom: 0.35cm;
+    page-break-inside: avoid;
+}
+
+.entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.entry-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.entry-dates {
+    font-size: 9.5pt;
+    color: #555;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 0.5cm;
+}
+
+.entry-subtitle {
+    font-size: 10pt;
+    color: #444;
+    margin-bottom: 0.1cm;
+}
+
+.entry-description {
+    font-size: 10pt;
+    color: #444;
+    margin-bottom: 0.1cm;
+}
+
+.entry ul {
+    margin-left: 0.5cm;
+    margin-top: 0.05cm;
+}
+
+.entry li {
+    font-size: 10pt;
+    margin-bottom: 0.05cm;
+}
+
+/* Skills */
+.skills-list {
+    list-style: none;
+    padding: 0;
+}
+
+.skills-list li {
+    margin-bottom: 0.1cm;
+    font-size: 10pt;
+}
+
+.skill-category {
+    font-weight: 700;
+}
+
+/* Languages: one line, not a bulleted list. Three bullets and a heading for
+   what fits in a single line is the cheapest space on the page. */
+.languages-line {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 10pt;
+}
+
+.languages-line li {
+    display: inline;
+}
+
+.languages-line li + li::before {
+    /* A literal middle dot: the escaped form makes WeasyPrint pull in a
+       fallback font for the separator alone. */
+    content: " · ";
+    color: #777;
+}
+
+/* Certifications keep the bulleted list. */
+.languages-list {
+    list-style: disc;
+    margin-left: 0.5cm;
+}
+
+.languages-list li {
+    font-size: 10pt;
+    margin-bottom: 0.05cm;
+}
+
+/* Summary */
+.summary p {
+    font-size: 10.5pt;
+}

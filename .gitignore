@@ -1,0 +1,13 @@
+/output/
+.dev/
+__pycache__/
+*.egg-info/
+.venv/
+.claude
+
+# The CV data is personal and stays out of git entirely: names, employers,
+# contact details and photos have no place in a shared history. The editor
+# keeps its own backups (data/*.bak and data/.history/). Only the placeholder
+# that makes the directory exist on a fresh clone is tracked.
+data/*
+!data/.gitkeep

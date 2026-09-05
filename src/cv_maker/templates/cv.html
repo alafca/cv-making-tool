@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="{{ (data.meta or {}).get('lang', 'en') }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ data.name }} - CV</title>
+    <style>{{ css | safe }}</style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            {% if photo_uri %}
+            <img class="photo" src="{{ photo_uri }}" alt="Profile photo" width="80" height="80">
+            {% endif %}
+            <div>
+                <h1 class="name" data-edit="name">{{ data.name }}</h1>
+                {% if data.headline %}
+                <p class="headline" data-edit="headline">{{ data.headline }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% if data.contact %}
+        <p class="contact-line">
+            <span data-edit="email">{{ data.contact.email }}</span>{% if data.contact.phone %} | <span data-edit="phone">{{ data.contact.phone }}</span>{% endif %}
+            {% if data.contact.location %} | <span data-edit="location">{{ data.contact.location }}</span>{% endif %}
+            {% if data.contact.linkedin %}{% set li = contact_handle(data.contact.linkedin, 'https://linkedin.com/in/') %} | <span data-edit="linkedin"><a href="{{ li.url }}">{{ li.text }}</a></span>{% endif %}
+            {% if data.contact.github %}{% set gh = contact_handle(data.contact.github, 'https://github.com/') %} | <span data-edit="github"><a href="{{ gh.url }}">{{ gh.text }}</a></span>{% endif %}
+        </p>
+        {% endif %}
+    </div>
+
+    {% if data.summary %}
+    <section class="summary">
+        <h2>{{ headers.summary }}</h2>
+        <p data-edit="summary">{{ data.summary | linkify }}</p>
+    </section>
+    {% endif %}
+
+    {% if data.experience %}
+    <section>
+        <h2>{{ headers.experience }}</h2>
+        {% for job in data.experience %}
+        {% set job_idx = loop.index0 %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title" data-edit="experience.{{ job_idx }}.title">{{ job.title }}</span>
+                <span class="entry-dates" data-edit="experience.{{ job_idx }}.dates">{{ job.dates }}</span>
+            </div>
+            <div class="entry-subtitle"><span data-edit="experience.{{ job_idx }}.company">{{ job.company }}</span>{% if job.location %}, <span data-edit="experience.{{ job_idx }}.location">{{ job.location }}</span>{% endif %}</div>
+            {% if job.description %}
+            <div class="entry-description" data-edit="experience.{{ job_idx }}.description">{{ job.description | linkify }}</div>
+            {% endif %}
+            {% if job.bullets %}
+            <ul>
+                {% for bullet in job.bullets %}
+                <li data-edit="experience.{{ job_idx }}.bullets">{{ bullet | linkify }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.education %}
+    <section>
+        <h2>{{ headers.education }}</h2>
+        {% for edu in data.education %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title" data-edit="education.{{ loop.index0 }}.institution">{{ edu.institution }}</span>
+                <span class="entry-dates" data-edit="education.{{ loop.index0 }}.dates">{{ edu.dates }}</span>
+            </div>
+            <div class="entry-subtitle" data-edit="education.{{ loop.index0 }}.degree">{{ edu.degree }}</div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.publications %}
+    <section>
+        <h2>{{ headers.publications }}</h2>
+        {% for pub in data.publications %}
+        <div class="entry">
+            <div class="entry-header">
+                <span class="entry-title" data-edit="publications.{{ loop.index0 }}.title">{% if pub.url %}<a href="{{ pub.url }}">{{ pub.title }}</a>{% else %}{{ pub.title }}{% endif %}</span>
+                <span class="entry-dates" data-edit="publications.{{ loop.index0 }}.year">{{ pub.year }}</span>
+            </div>
+            <div class="entry-subtitle"><span data-edit="publications.{{ loop.index0 }}.venue">{{ pub.venue }}</span>{% if pub.note %} — <span data-edit="publications.{{ loop.index0 }}.note">{{ pub.note }}</span>{% endif %}</div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.skills %}
+    <section>
+        <h2>{{ headers.skills }}</h2>
+        <ul class="skills-list">
+            {% for skill in data.skills %}
+            <li><span class="skill-category" data-edit="skills.{{ loop.index0 }}.category">{{ skill.category }}:</span> <span data-edit="skills.{{ loop.index0 }}.entries">{{ skill.entries | linkify }}</span></li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if data.languages %}
+    <section>
+        <h2>{{ headers.languages }}</h2>
+        <ul class="languages-line">
+            {% for lang in data.languages %}
+            <li><span data-edit="languages.{{ loop.index0 }}.name">{{ lang.name }}</span> (<span data-edit="languages.{{ loop.index0 }}.level">{{ lang.level }}</span>)</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if data.certifications %}
+    <section>
+        <h2>{{ headers.certifications }}</h2>
+        <ul class="languages-list">
+            {% for cert in data.certifications %}
+            <li data-edit="certifications.{{ loop.index0 }}">{{ cert | linkify }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+</body>
+</html>
