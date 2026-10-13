@@ -24,6 +24,7 @@ suite sets "off" so a check never spawns that install.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -154,10 +155,8 @@ def parse_with_lever(pdf_bytes: bytes) -> dict:
     try:
         return ResumeParser().parse(path).to_dict()
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(path)
-        except OSError:
-            pass
 
 
 def fidelity(data: dict, parsed: dict) -> ExternalScore:
@@ -224,16 +223,17 @@ def fidelity(data: dict, parsed: dict) -> ExternalScore:
         earned += _W_SKILLS * len(hits) / len(wanted)
         missing = [w for w in wanted if w not in hits]
         if missing:
-            lost.append(f"{len(missing)} of {len(wanted)} skills ({', '.join(missing[:6])}{'...' if len(missing) > 6 else ''})")
+            shown = ", ".join(missing[:6]) + ("..." if len(missing) > 6 else "")
+            lost.append(f"{len(missing)} of {len(wanted)} skills ({shown})")
 
-    langs = [l.get("name") if isinstance(l, dict) else l for l in data.get("languages") or []]
+    langs = [x.get("name") if isinstance(x, dict) else x for x in data.get("languages") or []]
     if langs:
-        got = [l.get("name") if isinstance(l, dict) else l for l in parsed.get("languages") or []]
-        hits = [l for l in langs if _contains(got, l)]
+        got = [x.get("name") if isinstance(x, dict) else x for x in parsed.get("languages") or []]
+        hits = [lang for lang in langs if _contains(got, lang)]
         total += _W_LANGUAGES
         earned += _W_LANGUAGES * len(hits) / len(langs)
         if len(hits) < len(langs):
-            lost.append("languages " + ", ".join(l for l in langs if l not in hits))
+            lost.append("languages " + ", ".join(lang for lang in langs if lang not in hits))
 
     if data.get("summary"):
         item(_W_SUMMARY, bool(parsed.get("summary")), "summary")
@@ -243,7 +243,9 @@ def fidelity(data: dict, parsed: dict) -> ExternalScore:
     breakdown = {
         "sections_found": meta.get("sections_found") or [],
         "experience_entries": f"{len(jobs)} parsed, {len(data.get('experience') or [])} in the CV",
-        "education_entries": f"{len(parsed.get('education') or [])} parsed, {len(data.get('education') or [])} in the CV",
+        "education_entries": (
+            f"{len(parsed.get('education') or [])} parsed, {len(data.get('education') or [])} in the CV"
+        ),
         "parser_confidence": {
             k: round(float(v), 2) for k, v in (parsed.get("confidence_scores") or {}).items()
         },
@@ -259,7 +261,7 @@ def fidelity(data: dict, parsed: dict) -> ExternalScore:
 def lever_fidelity(data: dict, pdf_bytes: bytes) -> ExternalScore:
     try:
         parsed = parse_with_lever(pdf_bytes)
-    except Exception as exc:  # a parser crash is a finding, not a failure
+    except Exception as exc:  # noqa: BLE001 - a parser crash is a finding, not a failure
         return ExternalScore(LEVER_ID, LEVER_LABEL, None, False, f"pyresume could not parse the PDF: {exc}")
     return fidelity(data, parsed)
 
@@ -285,7 +287,10 @@ def scorer_report(pdf_bytes: bytes, job_description: str) -> ExternalScore:
             "categories score the CV against one.",
         )
     if shutil.which("uv") is None:
-        return ExternalScore(SCORER_ID, SCORER_LABEL, None, False, "uv is not on PATH; it runs the scorer in a Python 3.12 environment.")
+        return ExternalScore(
+            SCORER_ID, SCORER_LABEL, None, False,
+            "uv is not on PATH; it runs the scorer in a Python 3.12 environment.",
+        )
 
     with tempfile.TemporaryDirectory() as tmp:
         pdf_path = str(Path(tmp) / "cv.pdf")
@@ -305,7 +310,7 @@ def scorer_report(pdf_bytes: bytes, job_description: str) -> ExternalScore:
         tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
         return ExternalScore(SCORER_ID, SCORER_LABEL, None, False, "ats-resume-scorer failed: " + " | ".join(tail))
     # The runner prints one JSON line last; anything before it is library noise.
-    line = next((l for l in reversed(proc.stdout.splitlines()) if l.startswith("{")), "")
+    line = next((ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith("{")), "")
     try:
         result = json.loads(line)
     except json.JSONDecodeError:

@@ -1,0 +1,258 @@
+/* Colour roles. Components reference these, never a raw value, so a pair can be
+   re-measured in one place. Every text pair here meets 4.5:1 and every control
+   border 3:1 against the surface it sits on; the browser test re-checks the
+   rendered pairs. */
+:root {
+    --bar-bg: #1a1a2e;
+    --bar-raised: #2a2a4a;
+    --bar-raised-hover: #3a3a5a;
+    --bar-border: #7a7a99;
+    --bar-text: #fff;
+    --bar-text-muted: #c8c8d8;
+    --accent: #2e7d32;
+    --accent-hover: #256b29;
+    --accent-soft: #e8f5e9;
+    --accent-soft-hover: #c8e6c9;
+    --accent-border: #81c784;
+    --danger: #d32f2f;
+    --danger-hover: #b71c1c;
+    --danger-on-dark: #ff8a80;
+    --surface: #fff;
+    --surface-muted: #fafafa;
+    --surface-sunken: #f5f5f5;
+    --surface-preview: #e0e0e0;
+    --border: #e0e0e0;
+    --control-border: #8a8a8a;
+    --text: #111;
+    --text-secondary: #555;
+    --text-muted: #666;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: var(--surface-sunken); color: var(--text); }
+/* Groups are spaced 2x wider apart (24px) than the controls within them (8px),
+   so the bar reads as four clusters rather than one row of eighteen things. */
+.toolbar {
+    display: flex; align-items: center; gap: 8px 24px; padding: 8px 16px;
+    background: var(--bar-bg); color: var(--bar-text); flex-wrap: wrap; position: relative;
+    z-index: 400;
+}
+.toolbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toolbar .brand { font-weight: 700; font-size: 16px; }
+.toolbar label { font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.toolbar select, .toolbar input[type="color"] { cursor: pointer; }
+.toolbar select { padding: 4px 6px; border-radius: 4px; border: 1px solid var(--bar-border); background: var(--bar-raised); color: var(--bar-text); font-size: 13px; }
+.toolbar input[type="color"] { width: 28px; height: 28px; border: 1px solid var(--bar-border); border-radius: 4px; background: none; padding: 1px; }
+.toolbar input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; }
+.toolbar .spacer { flex: 1; }
+/* One filled action per view: Save. Everything else is a raised neutral. */
+.toolbar button {
+    padding: 5px 14px; border: 1px solid var(--bar-border); border-radius: 4px; font-size: 13px;
+    cursor: pointer; font-weight: 600; background: var(--bar-raised); color: var(--bar-text);
+    transition-property: background-color, color; transition-duration: .15s;
+}
+.toolbar button:hover { background: var(--bar-raised-hover); }
+/* Scoped under .toolbar so they outrank the base button rule above. */
+.toolbar .btn-primary { background: var(--accent); border-color: var(--accent); }
+.toolbar .btn-primary:hover { background: var(--accent-hover); }
+.toolbar .btn-danger { color: var(--danger-on-dark); }
+.toolbar .btn-danger:hover { background: #4a2a2a; }
+
+/* ATS report: an overlay panel, so opening it never reflows the toolbar or
+   the editor panes. It starts below the toolbar (top is set from the bar's
+   measured height when it opens) so the buttons stay reachable while it is up;
+   the toolbar also outranks it, in case the bar wraps while the panel is
+   open. */
+.ats-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 92vw;
+    background: #fff; box-shadow: -4px 0 20px rgba(0,0,0,0.25); z-index: 300;
+    display: none; flex-direction: column;
+}
+.ats-panel.open { display: flex; }
+.ats-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: var(--bar-bg); color: var(--bar-text); flex-shrink: 0;
+}
+.ats-head h2 { font-size: 15px; font-weight: 700; flex: 1; }
+.ats-close {
+    background: none; border: none; color: var(--bar-text-muted); font-size: 22px;
+    cursor: pointer; line-height: 1; width: 32px; height: 32px; border-radius: 4px;
+}
+.ats-close:hover { color: var(--bar-text); background: var(--bar-raised-hover); }
+.ats-score { font-size: 20px; font-weight: 700; }
+/* One chip per opinion, ours first. A tool with no score still gets a chip so
+   the reader can see it ran, and why it has nothing to say. */
+.ats-scores {
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px;
+    background: #f1f1f6; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;
+}
+.ats-chip {
+    display: flex; flex-direction: column; min-width: 120px; padding: 6px 10px;
+    border-radius: 6px; background: #fff; border: 1px solid #d8d8e0;
+}
+.ats-chip .chip-label { font-size: 12px; color: var(--text-secondary); }
+.ats-chip .chip-score { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ats-chip .chip-score.na { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.ats-external { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ats-external h3 { font-size: 13px; margin: 0 0 6px; }
+.ats-external .note { font-size: 12px; color: #555; margin-bottom: 6px; line-height: 1.45; }
+.ats-external table { font-size: 12px; border-collapse: collapse; margin-bottom: 6px; }
+.ats-external td { padding: 1px 10px 1px 0; color: #333; vertical-align: top; }
+.ats-external ul { margin: 0 0 0 18px; padding: 0; font-size: 12px; line-height: 1.45; }
+.ats-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.ats-jd { padding: 10px 16px; border-bottom: 1px solid #e0e0e0; background: #fafafa; }
+.ats-jd label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+.ats-jd textarea {
+    width: 100%; min-height: 54px; resize: vertical; padding: 6px 8px;
+    border: 1px solid var(--control-border); border-radius: 4px; font: inherit; font-size: 13px;
+}
+.ats-finding {
+    border-left: 4px solid #bbb; padding: 8px 10px; margin-bottom: 10px;
+    background: #fafafa; border-radius: 0 4px 4px 0;
+}
+.ats-finding .msg { font-size: 13px; font-weight: 600; color: #111; }
+.ats-finding .det { font-size: 12px; color: #555; margin-top: 4px; line-height: 1.45; }
+.ats-finding .tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 2px;
+}
+.sev-critical { border-left-color: #c62828; background: #fdecea; }
+.sev-high     { border-left-color: #ef6c00; background: #fff4e5; }
+.sev-medium   { border-left-color: #f9a825; background: #fffae6; }
+.sev-low      { border-left-color: #90a4ae; }
+.sev-good     { border-left-color: #2e7d32; background: #edf7ed; }
+.page-count {
+    font-size: 12px; font-weight: 600;
+    min-width: 58px; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* Transient messages float below the toolbar instead of sitting inside it:
+   anything in the flex row shifts the buttons, or wraps the bar taller, as
+   soon as it has text. Anchored to the toolbar so it follows if that wraps. */
+.toast {
+    position: absolute; top: calc(100% + 8px); right: 16px; z-index: 200;
+    max-width: 340px; padding: 8px 14px; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+    opacity: 0; pointer-events: none;
+    transition-property: opacity; transition-duration: .18s;
+    display: flex; align-items: center; gap: 10px;
+}
+.toast.show { opacity: 1; }
+/* Errors stay until dismissed, so they can be read and acted on. */
+.toast.error { background: var(--danger); pointer-events: auto; }
+.toast-close {
+    background: none; border: 1px solid rgba(255,255,255,0.6); color: #fff; border-radius: 4px;
+    width: 24px; height: 24px; font-size: 16px; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.toast-close:hover { background: rgba(255,255,255,0.15); }
+@media (prefers-reduced-motion: no-preference) {
+    .toast { transform: translateY(-6px); transition-property: opacity, transform; }
+    .toast.show { transform: translateY(0); }
+    .toolbar button:active, .add-btn:active { transform: scale(0.96); }
+}
+
+/* Toggle buttons */
+.view-toggle { display: flex; gap: 0; margin-left: 8px; }
+.toolbar .view-toggle button {
+    padding: 4px 12px; border-radius: 0; font-size: 13px; color: var(--bar-text-muted);
+}
+.toolbar .view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.toolbar .view-toggle button:last-child { border-radius: 0 4px 4px 0; border-inline-start: none; }
+.toolbar .view-toggle button.active { background: var(--accent); color: var(--bar-text); border-color: var(--accent); }
+
+.main {
+    flex: 1; display: flex; min-height: 0;
+}
+.editor-pane {
+    flex: 1; display: flex; flex-direction: column; border-inline-end: 1px solid var(--border);
+}
+.editor-pane textarea {
+    flex: 1; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px; line-height: 1.5; border: none; background: #1e1e2e;
+    color: #cdd6f4; tab-size: 2;
+}
+/* The browser's own focus ring, drawn inside so the pane edge does not clip it. */
+.editor-pane textarea:focus-visible { outline: 2px solid var(--accent-border); outline-offset: -2px; }
+.preview-pane {
+    flex: 1; overflow-y: auto; overflow-x: hidden; background: var(--surface-preview);
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 20px; position: relative;
+}
+.preview-pane iframe {
+    width: 210mm; border: none; background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    transform-origin: top center; flex-shrink: 0;
+}
+.splitter {
+    width: 6px; cursor: col-resize; background: var(--control-border);
+    transition-property: background-color; transition-duration: .15s;
+    flex-shrink: 0;
+}
+.splitter:hover, .splitter.dragging, .splitter:focus-visible { background: var(--accent); }
+
+/* Fields view */
+#fieldsView {
+    flex: 1; overflow-y: auto; padding: 16px; background: var(--surface-muted);
+    display: none;
+}
+#fieldsView .section {
+    margin-bottom: 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
+}
+#fieldsView .section-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--text);
+    margin-bottom: 10px; letter-spacing: 0.06em;
+}
+#fieldsView label.field-label {
+    display: block; font-size: 12px; color: var(--text); margin-bottom: 3px; margin-top: 8px;
+}
+#fieldsView label.field-label:first-of-type { margin-top: 0; }
+#fieldsView input[type="text"],
+#fieldsView textarea,
+#fieldsView select {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--control-border); border-radius: 4px;
+    font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+    transition-property: border-color; transition-duration: .15s;
+}
+#fieldsView input[type="text"]:focus,
+#fieldsView textarea:focus,
+#fieldsView select:focus { border-color: var(--accent); }
+#fieldsView textarea { resize: vertical; min-height: 60px; }
+
+/* Repeatable groups. The card radius is the section radius minus its padding,
+   clamped, so the nested corners stay concentric. */
+.repeatable-item {
+    background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px;
+    padding: 12px 14px; margin-top: 8px; position: relative;
+}
+.repeatable-item .item-actions {
+    position: absolute; top: 8px; inset-inline-end: 8px; display: flex; gap: 4px;
+}
+.repeatable-item .move-btn, .repeatable-item .remove-btn {
+    background: var(--surface-preview); color: var(--text-secondary); border: none; border-radius: 50%;
+    width: 28px; height: 28px; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0; transition-property: background-color; transition-duration: .15s;
+}
+.repeatable-item .move-btn:hover { background: #bdbdbd; }
+.repeatable-item .remove-btn { background: var(--danger); color: #fff; }
+.repeatable-item .remove-btn:hover { background: var(--danger-hover); }
+.add-btn {
+    margin-top: 8px; padding: 6px 14px; background: var(--accent-soft); color: var(--accent);
+    border: 1px dashed var(--accent-border); border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-weight: 600;
+}
+.add-btn:hover { background: var(--accent-soft-hover); }
+.link-hint {
+    font-size: 12px; color: var(--text-muted); padding: 6px 16px 0; background: var(--surface-muted);
+}
+.link-hint code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+/* The pulse that shows which field a preview click landed on. Under reduced
+   motion the focus ring and selection carry the cue on their own. */
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes fieldFlash {
+        0% { box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.6); }
+        100% { box-shadow: 0 0 0 3px rgba(46, 125, 50, 0); }
+    }
+    .field-flash { animation: fieldFlash 1.2s ease-out; }
+}

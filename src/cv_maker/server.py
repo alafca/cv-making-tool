@@ -140,6 +140,16 @@ def create_app(yaml_path: Path) -> FastAPI:
     default_cv = _default_cv_from_path(yaml_path)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    @app.middleware("http")
+    async def no_store_static(request, call_next):
+        # The editor's script and styles live in /static. Like the page itself,
+        # they must never be served from cache: an old script writes YAML with
+        # its own idea of which sections exist and silently drops the rest.
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, must-revalidate"
+        return response
+
     def valid_cv(name: str | None) -> str:
         """Validate a client-supplied CV name, defaulting to the startup one."""
         if name is None:
@@ -147,7 +157,7 @@ def create_app(yaml_path: Path) -> FastAPI:
         try:
             return validate_cv_name(name)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def known_cvs() -> list[str]:
         return list_cvs(data_dir, suffix)
@@ -156,7 +166,7 @@ def create_app(yaml_path: Path) -> FastAPI:
         try:
             data = yaml.safe_load(text)
         except yaml.YAMLError as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}")
+            raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}") from exc
         if not data:
             raise HTTPException(status_code=400, detail="Empty YAML")
         return data
@@ -170,8 +180,8 @@ def create_app(yaml_path: Path) -> FastAPI:
                 data_dir,
                 primary_color=req.primary_color,
             )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Render error: {exc}")
+        except Exception as exc:  # noqa: BLE001 - any render failure is a 400 with its message
+            raise HTTPException(status_code=400, detail=f"Render error: {exc}") from exc
 
     def download_name(req: PreviewRequest, extension: str) -> str:
         """Name downloads after the CV so tailored versions don't collide."""
@@ -270,7 +280,7 @@ def create_app(yaml_path: Path) -> FastAPI:
             return _error_page(str(exc.detail))
         try:
             page_count = len(HTML(string=html_str).render().pages)
-        except Exception:
+        except Exception:  # noqa: BLE001 - the count is a hint; the preview still renders
             page_count = 0
         return HTMLResponse(html_str, headers={"X-Page-Count": str(page_count)})
 
@@ -327,8 +337,8 @@ def create_app(yaml_path: Path) -> FastAPI:
                 job_description=req.job_description,
                 show_photo=req.show_photo,
             )
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"ATS check failed: {exc}")
+        except Exception as exc:  # noqa: BLE001 - reported to the panel, never a 500
+            raise HTTPException(status_code=400, detail=f"ATS check failed: {exc}") from exc
         return report.as_dict()
 
     @app.post("/api/markdown")
@@ -336,8 +346,8 @@ def create_app(yaml_path: Path) -> FastAPI:
         data = parse_yaml_or_raise(req.yaml)
         try:
             text = render_markdown(data)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Markdown error: {exc}")
+        except Exception as exc:  # noqa: BLE001 - reported to the editor, never a 500
+            raise HTTPException(status_code=400, detail=f"Markdown error: {exc}") from exc
         return Response(content=text, media_type="text/markdown; charset=utf-8")
 
     return app
