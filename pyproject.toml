@@ -17,6 +17,19 @@ dependencies = [
     "leverparser[pdf]>=0.1.0",
 ]
 
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# BLE flags catch-all excepts; the few deliberate ones, at boundaries that
+# must report a failure rather than crash, carry a noqa with their reason.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "BLE"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests hold long literals (YAML, JS snippets) and catch broadly on purpose.
+"tests/*" = ["E501", "BLE001"]
+
 [dependency-groups]
 dev = [
     "pytest",
