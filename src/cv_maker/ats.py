@@ -206,7 +206,7 @@ def check_parse_back(data: dict, pdf_bytes: bytes, lang: str) -> tuple[list[Find
     findings: list[Finding] = []
     try:
         text = extract_pdf_text(pdf_bytes)
-    except Exception as exc:  # pragma: no cover - depends on the PDF engine
+    except Exception as exc:  # noqa: BLE001  # pragma: no cover - depends on the PDF engine
         return [Finding(CRITICAL, "extraction", "The PDF's text could not be extracted at all.", str(exc))], ""
 
     if not text.strip():

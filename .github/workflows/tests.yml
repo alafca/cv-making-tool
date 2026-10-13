@@ -8,11 +8,13 @@ jobs:
   fast:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # WeasyPrint renders through Pango; the runner does not ship it.
       - name: Install WeasyPrint system libraries
         run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.0
       # Browser and external-scorer tests are opt-in and stay off here.
+      - name: Lint
+        run: uvx ruff check src tests
       - name: Run the fast suite
         run: uv run pytest -q

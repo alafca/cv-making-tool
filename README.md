@@ -3,6 +3,8 @@
 Write CVs in YAML, edit them in a web editor with a live preview, export PDF,
 HTML or Markdown, and check how each version survives ATS parsing.
 
+![Editing a CV: change a field, switch the style, run the ATS check](docs/images/demo.gif)
+
 ## Install
 
 You need [uv](https://docs.astral.sh/uv/). `uv run` creates the environment
@@ -131,6 +133,8 @@ uv run python -m cv_maker --cv acme --ats-check
 uv run python -m cv_maker --cv acme --ats-check --job-description jd.txt
 ```
 
+![The ATS panel: three independent scores, then each finding](docs/images/ats-check.png)
+
 It shows three scores side by side and never blends them:
 
 - **Built-in**, this app's own checks, described below.
@@ -184,7 +188,8 @@ Windows, macOS or Linux. Point `CV_MAKER_BROWSER` at a browser binary to choose
 one, or run `uv run playwright install chromium` to use Playwright's own. They
 are deselected by default because they take a couple of minutes.
 
-CI runs the fast suite on Linux on every push.
+CI runs ruff and the fast suite on Linux on every push. Lint locally with
+`uvx ruff check src tests`; the rules live in `pyproject.toml`.
 
 They never read or write `data/`. Each test gets a temp directory holding
 `tests/fixtures/testing_cv.yaml`, a fictional CV that is deliberately

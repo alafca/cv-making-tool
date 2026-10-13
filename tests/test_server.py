@@ -268,7 +268,7 @@ def test_two_saves_do_not_destroy_the_original(client, data_dir):
     assert "V2" in (data_dir / "cv_data.yaml.bak").read_text(encoding="utf-8")
     history = sorted((data_dir / ".history").glob("cv_data-*.yaml"))
     assert any(
-        SAMPLE_YAML == s.read_text(encoding="utf-8") for s in history
+        s.read_text(encoding="utf-8") == SAMPLE_YAML for s in history
     ), "original content must remain recoverable from history"
 
 
@@ -813,3 +813,21 @@ def test_serve_never_overwrites_existing_cvs(data_dir, monkeypatch):
     cli.main()
     assert not (data_dir / "other.yaml").exists()
     assert (data_dir / "cv_data.yaml").read_text(encoding="utf-8") == before
+
+
+# --- Editor assets ---------------------------------------------------------------
+
+
+def test_editor_page_links_its_script_and_styles(client):
+    page = client.get("/").text
+    assert '<script src="/static/editor.js"></script>' in page
+    assert '<link rel="stylesheet" href="/static/editor.css">' in page
+    assert "<style>" not in page  # nothing left inline
+
+
+@pytest.mark.parametrize("asset,needle", [("editor.js", "function refreshPreview"), ("editor.css", ".toolbar")])
+def test_editor_assets_are_served_and_never_cached(client, asset, needle):
+    r = client.get(f"/static/{asset}")
+    assert r.status_code == 200
+    assert needle in r.text
+    assert "no-store" in r.headers["cache-control"]
