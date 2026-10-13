@@ -20,6 +20,7 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import Path
 
 from cv_maker.generator import cv_lang, plain_text, render_html
@@ -100,7 +101,7 @@ _ACTION_VERBS = {
 _WEAK_OPENINGS = re.compile(
     r"^(development|deployment|design|creation|maintenance|implementation|"
     r"analysis|responsible for|worked on|helped|assisted|participated)\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 _METRIC_RE = re.compile(
@@ -108,7 +109,7 @@ _METRIC_RE = re.compile(
     r"users?|clients?|customers?|images?|documents?|records?|tests?|sites?|"
     r"people|engineers?)|"
     r"[€$£]\s?\d|\b\d+\s?(%|x)\b|\bn\s?=\s?\d+|\bAUC\b|\bF1\b|~\d)",
-    re.I,
+    re.IGNORECASE,
 )
 
 _PHONE_RE = re.compile(r"(\+\d[\d\s().-]{7,}|\(\d{3}\)\s?\d{3}[-\s]?\d{4}|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b)")
@@ -159,7 +160,7 @@ def _phrases(text: str) -> set[str]:
             w for m in _TOKEN_RE.finditer(segment)
             if (w := m.group(0).lower().rstrip(".-#"))
         ]
-        out |= {f"{a} {b}" for a, b in zip(words, words[1:])}
+        out |= {f"{a} {b}" for a, b in pairwise(words)}
     return out
 
 
@@ -327,7 +328,7 @@ def check_structure(data: dict, pages: int, lang: str) -> list[Finding]:
 
     # Anything beyond city/region in the location lands in the wrong field.
     location = str(contact.get("location") or "")
-    if re.search(r"\b(available|relocating|open to|immediately|notice)\b", location, re.I):
+    if re.search(r"\b(available|relocating|open to|immediately|notice)\b", location, re.IGNORECASE):
         findings.append(Finding(
             MEDIUM, "location",
             "The location field carries availability text.",
@@ -337,7 +338,7 @@ def check_structure(data: dict, pages: int, lang: str) -> list[Finding]:
     for key, value in contact.items():
         if key in {"email", "phone", "location", "linkedin", "github"}:
             continue
-        if re.search(r"\b(available|relocating)\b", str(value), re.I):
+        if re.search(r"\b(available|relocating)\b", str(value), re.IGNORECASE):
             findings.append(Finding(
                 MEDIUM, "contact",
                 f"contact.{key} carries availability text that belongs in the summary.",
@@ -369,14 +370,14 @@ def check_structure(data: dict, pages: int, lang: str) -> list[Finding]:
                 f"{job.get('title', 'A role')} has no dates.",
             ))
             continue
-        if re.search(r"\(.*\b(month|year|mes|año)", dates, re.I):
+        if re.search(r"\(.*\b(month|year|mes|año)", dates, re.IGNORECASE):
             findings.append(Finding(
                 LOW, "dates",
                 f"Duration text inside the date field: {dates!r}",
                 "A parser reads this field with a date regex; the duration in "
                 "brackets is noise it has to discard.",
             ))
-        if not re.search(r"\b(19|20)\d{2}\b", dates) and not re.search(r"present|actualidad", dates, re.I):
+        if not re.search(r"\b(19|20)\d{2}\b", dates) and not re.search(r"present|actualidad", dates, re.IGNORECASE):
             findings.append(Finding(
                 MEDIUM, "dates", f"No recognisable year in {dates!r}."
             ))
