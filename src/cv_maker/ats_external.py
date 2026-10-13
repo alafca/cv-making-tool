@@ -18,8 +18,9 @@ caveats, so a low number can be traced to what that tool actually saw.
   environment through uv, as a subprocess. Its own parser is crude, which is
   the point: the score is what a weak parser makes of the page.
 
-CV_MAKER_EXTERNAL_ATS selects which run: "all" (default), "lever" or "off".
-The test suite sets "off" so a check never spawns a 400 MB install.
+CV_MAKER_EXTERNAL_ATS selects which run: "lever" (default), "all" or "off".
+The scorer is opt-in because its first run installs about 400 MB; the test
+suite sets "off" so a check never spawns that install.
 """
 from __future__ import annotations
 
@@ -79,8 +80,8 @@ class ExternalScore:
 
 
 def mode() -> str:
-    value = (os.environ.get("CV_MAKER_EXTERNAL_ATS") or "all").strip().lower()
-    return value if value in {"all", "lever", "off"} else "all"
+    value = (os.environ.get("CV_MAKER_EXTERNAL_ATS") or "lever").strip().lower()
+    return value if value in {"all", "lever", "off"} else "lever"
 
 
 def run_external(data: dict, pdf_bytes: bytes, job_description: str = "") -> list[ExternalScore]:
@@ -94,7 +95,11 @@ def run_external(data: dict, pdf_bytes: bytes, job_description: str = "") -> lis
         ]
     out = [lever_fidelity(data, pdf_bytes)]
     if which == "lever":
-        out.append(ExternalScore(SCORER_ID, SCORER_LABEL, None, False, "Disabled by CV_MAKER_EXTERNAL_ATS=lever."))
+        out.append(ExternalScore(
+            SCORER_ID, SCORER_LABEL, None, False,
+            "Off by default: its first run installs about 400 MB. "
+            "Set CV_MAKER_EXTERNAL_ATS=all to turn it on.",
+        ))
     else:
         out.append(scorer_report(pdf_bytes, job_description))
     return out
@@ -291,7 +296,7 @@ def scorer_report(pdf_bytes: bytes, job_description: str) -> ExternalScore:
             proc = subprocess.run(
                 scorer_command(pdf_path, jd_path),
                 capture_output=True, text=True, timeout=SCORER_TIMEOUT_S,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8", errors="replace", check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             return ExternalScore(SCORER_ID, SCORER_LABEL, None, False, f"ats-resume-scorer did not run: {exc}")
@@ -343,7 +348,7 @@ def scorer_environment_ready() -> bool:
             ["uv", "run", "--no-project", "--quiet", "--python", SCORER_PYTHON,
              "--with", SCORER_PACKAGE, "--with", SPACY_MODEL,
              "python", "-c", "import ats_resume_scorer, en_core_web_sm"],
-            capture_output=True, text=True, timeout=SCORER_TIMEOUT_S,
+            capture_output=True, text=True, timeout=SCORER_TIMEOUT_S, check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return False

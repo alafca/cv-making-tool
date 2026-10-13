@@ -1,21 +1,43 @@
 # cv-making-tool
 
-Generate a PDF CV from a YAML data file. Includes a web editor with live preview.
+Write CVs in YAML, edit them in a web editor with a live preview, export PDF,
+HTML or Markdown, and check how each version survives ATS parsing.
+
+## Install
+
+You need [uv](https://docs.astral.sh/uv/). `uv run` creates the environment
+and installs the Python dependencies on first use.
+
+PDF rendering uses [WeasyPrint](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html),
+which needs Pango on the system:
+
+| System | Command |
+|---|---|
+| Debian, Ubuntu | `sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0` |
+| Fedora | `sudo dnf install pango` |
+| macOS | `brew install pango` |
+| Windows | Install the GTK3 runtime, as in the WeasyPrint installation guide linked above |
 
 ## Usage
 
 ### Web editor (recommended)
 
 ```bash
-python -m uv run python -m cv_maker --serve
+uv run python -m cv_maker --serve
 ```
 
 Opens a browser at `http://127.0.0.1:8765` where you can edit your YAML, see a live preview, change language/color/photo, and download PDF or HTML.
 
+On a fresh clone `data/` is empty, so the first `--serve` writes a starter CV
+to `data/cv_data.yaml` and opens it. It never overwrites an existing CV.
+
+If the same CV is open in two tabs, saving from the older one asks before
+overwriting the newer version on disk, and keeps a backup either way.
+
 Use `--port` to change the default port:
 
 ```bash
-python -m uv run python -m cv_maker --serve --port 3000
+uv run python -m cv_maker --serve --port 3000
 ```
 
 ## Multiple CVs
@@ -48,6 +70,8 @@ Tick **Photo** in the editor, or pass `--photo` on the command line, to include 
 ## Links and emphasis
 
 Descriptions and bullets take `[text](url)` for a link and `**text**` for bold.
+Only `http`, `https` and `mailto` links become clickable; any other target keeps
+its label as plain text.
 Use bold sparingly, on the result in a bullet rather than the verb or a tool
 name: a handful per page reads as signposting, more reads as keyword stuffing.
 The ATS check and the markdown export see the plain words either way.
@@ -122,9 +146,12 @@ It shows three scores side by side and never blends them:
   as what a weak parser makes of the page. It pins a numpy with no wheel for
   Python 3.13, so it runs in its own Python 3.12 environment through `uv`.
   The first check installs about 400 MB; later checks take about ten seconds.
+  For that reason it is **off by default**.
 
-`CV_MAKER_EXTERNAL_ATS=lever` skips the scorer, `off` skips both. The test
-suite runs with `off`; `uv run pytest --external` also runs the scorer once.
+`CV_MAKER_EXTERNAL_ATS` chooses what runs: `lever` (the default) runs the
+Lever-style parse only, `all` adds ats-resume-scorer, `off` skips both. The
+test suite runs with `off`; `uv run pytest --external` also runs the scorer
+once.
 
 The built-in check looks at four things:
 
@@ -152,10 +179,18 @@ uv run pytest --browser                    # everything
 ```
 
 Browser tests drive the real editor through Playwright, using whichever
-Chromium-based browser is installed (Brave, Chrome or Edge). They are
-deselected by default because they take a couple of minutes.
+Chromium-based browser is installed: Brave, Chrome, Edge or Chromium, on
+Windows, macOS or Linux. Point `CV_MAKER_BROWSER` at a browser binary to choose
+one, or run `uv run playwright install chromium` to use Playwright's own. They
+are deselected by default because they take a couple of minutes.
+
+CI runs the fast suite on Linux on every push.
 
 They never read or write `data/`. Each test gets a temp directory holding
 `tests/fixtures/testing_cv.yaml`, a fictional CV that is deliberately
 ATS-clean, and `testing_cv_flawed.yaml`, its mirror image where every check
 should fire. Keep the pair in sync when adding a check.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

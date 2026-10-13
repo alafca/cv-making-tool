@@ -43,6 +43,12 @@ class PreviewRequest(BaseModel):
 class SaveRequest(BaseModel):
     yaml: str
     cv: str | None = None
+    # The file's modification time when the editor loaded it. A save is refused
+    # if the file has changed since, so a forgotten tab cannot silently
+    # overwrite newer work. None skips the check (a new file, or "save anyway").
+    # A string: nanosecond timestamps exceed JavaScript's safe-integer range,
+    # so as a JSON number the browser would round it and every save would fail.
+    base_mtime: str | None = None
 
 
 class CreateCvRequest(BaseModel):
@@ -248,7 +254,12 @@ def create_app(yaml_path: Path) -> FastAPI:
         path = cv_file_path(data_dir, cv, suffix)
         if not path.exists():
             raise HTTPException(status_code=404, detail=f"Data file not found: {path}")
-        return {"yaml": path.read_text(encoding="utf-8"), "cv": cv, "path": str(path)}
+        return {
+            "yaml": path.read_text(encoding="utf-8"),
+            "cv": cv,
+            "path": str(path),
+            "mtime": str(path.stat().st_mtime_ns),
+        }
 
     @app.post("/api/preview", response_class=HTMLResponse)
     def preview(req: PreviewRequest):
@@ -268,11 +279,20 @@ def create_app(yaml_path: Path) -> FastAPI:
         parse_yaml_or_raise(req.yaml)
         cv = valid_cv(req.cv)
         path = cv_file_path(data_dir, cv, suffix)
+        if (
+            req.base_mtime is not None
+            and path.exists()
+            and str(path.stat().st_mtime_ns) != req.base_mtime
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"'{cv}' changed on disk after this tab loaded it.",
+            )
         if path.exists():
             # Keep the previous version so one bad save is always reversible.
             _backup(path)
         path.write_text(req.yaml, encoding="utf-8")
-        return {"ok": True, "path": str(path), "cv": cv}
+        return {"ok": True, "path": str(path), "cv": cv, "mtime": str(path.stat().st_mtime_ns)}
 
     @app.post("/api/pdf")
     def download_pdf(req: PreviewRequest):

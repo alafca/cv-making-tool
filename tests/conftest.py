@@ -33,14 +33,20 @@ FIXTURES = Path(__file__).parent / "fixtures"
 TESTING_CV = FIXTURES / "testing_cv.yaml"
 FLAWED_CV = FIXTURES / "testing_cv_flawed.yaml"
 
-# Browsers Playwright can drive without downloading one. Brave first: it is
-# what this machine has installed.
+# Installed Chromium-based browsers Playwright can drive without downloading
+# one, on Windows, macOS and Linux. CV_MAKER_BROWSER overrides the search; if
+# nothing is found, Playwright's own Chromium is used when it is installed
+# (`uv run playwright install chromium`).
 _BROWSER_CANDIDATES = [
     r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
     r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
 ]
+_BROWSER_COMMANDS = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser"]
 
 
 def pytest_addoption(parser):
@@ -149,11 +155,21 @@ def live_server(testing_cv_dir: Path):
     thread.join(timeout=10)
 
 
-def _browser_executable() -> str:
+def _browser_executable() -> str | None:
+    """An installed browser to drive, or None for Playwright's bundled one."""
+    import shutil
+
+    override = os.environ.get("CV_MAKER_BROWSER")
+    if override:
+        return override
     for candidate in _BROWSER_CANDIDATES:
         if Path(candidate).exists():
             return candidate
-    pytest.skip("no Chromium-based browser found to drive")
+    for command in _BROWSER_COMMANDS:
+        found = shutil.which(command)
+        if found:
+            return found
+    return None
 
 
 @pytest.fixture()
@@ -168,10 +184,13 @@ def page(live_server: str):
     playwright = pytest.importorskip("playwright.sync_api")
 
     with playwright.sync_playwright() as pw:
-        browser = pw.chromium.launch(
-            executable_path=_browser_executable(),
-            headless=os.environ.get("CV_MAKER_HEADED") != "1",
-        )
+        try:
+            browser = pw.chromium.launch(
+                executable_path=_browser_executable(),
+                headless=os.environ.get("CV_MAKER_HEADED") != "1",
+            )
+        except Exception as exc:  # no browser installed, or the bundled one missing
+            pytest.skip(f"no Chromium-based browser to drive: {exc}")
         context = browser.new_context(
             viewport={"width": 1500, "height": 950},
             permissions=["clipboard-read", "clipboard-write"],

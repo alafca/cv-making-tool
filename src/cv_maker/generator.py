@@ -55,10 +55,29 @@ DEFAULT_CV = "cv_data"
 _CV_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
+# Only these become clickable. Anything else, javascript: above all, keeps its
+# label as plain text: the preview and the exported HTML run in a browser.
+_SAFE_URL_RE = re.compile(r"^(?:https?:|mailto:)", re.IGNORECASE)
+
+# The accent colour reaches a <style> block, so it must be a colour and nothing else.
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _link(match: re.Match) -> str:
+    label, url = match.group(1), match.group(2).strip()
+    if _SAFE_URL_RE.match(url):
+        return f'<a href="{url}">{label}</a>'
+    return label
+
+
 def linkify(text):
-    """Convert [text](url) to <a> and **text** to <strong>, escaping the rest."""
+    """Convert [text](url) to <a> and **text** to <strong>, escaping the rest.
+
+    Only http, https and mailto links become anchors; any other scheme keeps
+    its label as plain text.
+    """
     escaped = str(escape(text))
-    result = _LINK_RE.sub(r'<a href="\2">\1</a>', escaped)
+    result = _LINK_RE.sub(_link, escaped)
     result = _BOLD_RE.sub(r"<strong>\1</strong>", result)
     return Markup(result)
 
@@ -73,16 +92,15 @@ def display_url(url: str) -> str:
     """A URL as a human would write it on a resume: no scheme, no trailing slash.
 
     ATS parsers read the text layer, not the href, so a contact line showing a
-    bare handle ("afc-math") gives them nothing to file under a profile field.
-    Showing "linkedin.com/in/afc-math" is both readable and machine-usable.
+    bare handle ("jane-doe") gives them nothing to file under a profile field.
+    Showing "linkedin.com/in/jane-doe" is both readable and machine-usable.
     """
     text = str(url or "").strip()
     for prefix in ("https://", "http://"):
         if text.startswith(prefix):
             text = text[len(prefix):]
             break
-    if text.startswith("www."):
-        text = text[4:]
+    text = text.removeprefix("www.")
     return text.rstrip("/")
 
 
@@ -199,7 +217,8 @@ def render_html(
     if extra:
         css = css + "\n" + extra
 
-    if primary_color:
+    # Anything that is not a hex colour is ignored rather than pasted into CSS.
+    if primary_color and _HEX_COLOR_RE.match(primary_color):
         css = f":root {{ --primary-color: {primary_color}; }}\n" + css
 
     # `meta:` may be absent entirely, or present but empty (which parses as
@@ -221,7 +240,7 @@ def generate_pdf(html_string: str, output_path: Path) -> None:
 def build_cv(
     yaml_path: Path,
     output_path: Path,
-    show_photo: bool = True,
+    show_photo: bool = False,
 ) -> None:
     data = load_data(yaml_path)
     yaml_dir = yaml_path.resolve().parent

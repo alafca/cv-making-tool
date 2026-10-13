@@ -262,3 +262,15 @@ def test_pyresume_recovers_every_job_in_the_fixture(monkeypatch, tmp_path: Path)
         assert f"job title '{job['title']}'" not in lost, lost
         assert f"employer '{job['company']}'" not in lost, lost
     assert lever.breakdown["experience_entries"].startswith(f"{len(data['experience'])} parsed")
+
+
+def test_scorer_is_off_by_default(monkeypatch):
+    """Its first run installs about 400 MB, so it must be asked for."""
+    monkeypatch.delenv("CV_MAKER_EXTERNAL_ATS", raising=False)
+    assert ats_external.mode() == "lever"
+    monkeypatch.setattr(ats_external, "lever_fidelity", lambda data, pdf: ExternalScore(LEVER_ID, "x", 90, True))
+    called = []
+    monkeypatch.setattr(ats_external, "scorer_report", lambda *a: called.append(a))
+    out = run_external(CV, b"%PDF-1.4", "a job ad")
+    assert called == []
+    assert not out[1].available and "CV_MAKER_EXTERNAL_ATS=all" in out[1].note
