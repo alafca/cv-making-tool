@@ -6,6 +6,7 @@ of personal CV content.
 from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -554,11 +555,11 @@ def test_contact_handle_normalises_both_shapes():
     from cv_maker.generator import contact_handle
 
     base = "https://github.com/"
-    assert contact_handle("alafca", base) == {
-        "text": "github.com/alafca",
-        "url": "https://github.com/alafca",
+    assert contact_handle("janedoe", base) == {
+        "text": "github.com/janedoe",
+        "url": "https://github.com/janedoe",
     }
-    assert contact_handle({"text": "alafca"}, base)["text"] == "github.com/alafca"
+    assert contact_handle({"text": "janedoe"}, base)["text"] == "github.com/janedoe"
     assert contact_handle({"url": "https://x.dev/me"}, base)["text"] == "x.dev/me"
 
 
@@ -714,3 +715,101 @@ def test_experience_dates_render_below_the_employer(client):
     # Education keeps its single header row.
     edu = html.index('data-edit="education.0.institution"')
     assert 'class="entry-dates" data-edit="education.0.dates"' in html[edu:edu + 300]
+
+
+# --- Review fixes --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "JavaScript:void(0)", "data:text/html,x", "vbscript:x", "www.example.com"])
+def test_linkify_drops_unsafe_link_targets(url):
+    out = str(linkify(f"see [the label]({url}) here"))
+    assert "<a" not in out
+    assert "the label" in out
+
+
+@pytest.mark.parametrize("url", ["https://example.com/a?b=1&c=2", "http://example.com", "mailto:jane@example.com"])
+def test_linkify_keeps_safe_link_targets(url):
+    out = str(linkify(f"[label]({url})"))
+    assert out.startswith('<a href="') and ">label</a>" in out
+
+
+@pytest.mark.parametrize("color", ["red;}</style><script>alert(1)</script><style>", "url(x)", "#12345", "123456", ""])
+def test_preview_ignores_a_primary_color_that_is_not_hex(client, color):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML, "primary_color": color})
+    assert r.status_code == 200
+    assert "<script>" not in r.text
+    assert "--primary-color: " + color not in r.text or not color
+
+
+@pytest.mark.parametrize("color", ["#1a2b3c", "#abc"])
+def test_preview_applies_a_hex_primary_color(client, color):
+    r = client.post("/api/preview", json={"yaml": SAMPLE_YAML, "primary_color": color})
+    assert f":root {{ --primary-color: {color}; }}" in r.text
+
+
+def test_read_reports_mtime_and_save_returns_the_new_one(client, data_dir):
+    mtime = client.get("/api/yaml?cv=cv_data").json()["mtime"]
+    assert isinstance(mtime, str)  # a JSON number would lose precision in the browser
+    assert mtime == str((data_dir / "cv_data.yaml").stat().st_mtime_ns)
+    r = client.post("/api/save", json={"yaml": SAMPLE_YAML, "cv": "cv_data", "base_mtime": mtime})
+    assert r.status_code == 200
+    assert r.json()["mtime"] == str((data_dir / "cv_data.yaml").stat().st_mtime_ns)
+
+
+def test_save_refuses_to_overwrite_a_newer_file(client, data_dir):
+    import os
+
+    path = data_dir / "cv_data.yaml"
+    stale = client.get("/api/yaml?cv=cv_data").json()["mtime"]
+    path.write_text(SAMPLE_YAML.replace("Jane Doe", "Newer Edit"), encoding="utf-8")
+    later = int(stale) + 10**9
+    os.utime(path, ns=(later, later))  # newer, whatever the clock resolution
+
+    r = client.post("/api/save", json={"yaml": "name: Stale Tab\n", "cv": "cv_data", "base_mtime": stale})
+    assert r.status_code == 409
+    assert "changed on disk" in r.json()["detail"]
+    assert "Newer Edit" in path.read_text(encoding="utf-8")
+
+    # "Save anyway" sends no base_mtime, and the newer version is backed up first.
+    r = client.post("/api/save", json={"yaml": "name: Stale Tab\n", "cv": "cv_data"})
+    assert r.status_code == 200
+    assert path.read_text(encoding="utf-8") == "name: Stale Tab\n"
+    assert "Newer Edit" in (data_dir / "cv_data.yaml.bak").read_text(encoding="utf-8")
+
+
+def test_build_cv_leaves_the_photo_out_by_default(data_dir, tmp_path):
+    import inspect
+
+    from cv_maker.generator import build_cv
+
+    assert inspect.signature(build_cv).parameters["show_photo"].default is False
+    out = tmp_path / "cv.pdf"
+    build_cv(data_dir / "cv_data.yaml", out)
+    assert out.exists()
+
+
+def test_serve_on_an_empty_data_dir_writes_a_starter_cv(tmp_path, monkeypatch):
+    import sys
+
+    from cv_maker import cli, server
+
+    started = {}
+    monkeypatch.setattr(server, "run_server", lambda path, port: started.update(path=path))
+    target = tmp_path / "data" / "cv_data.yaml"
+    monkeypatch.setattr(sys, "argv", ["cv_maker", "--data", str(target), "--serve"])
+    cli.main()
+    assert started["path"] == target
+    assert yaml.safe_load(target.read_text(encoding="utf-8"))["name"] == "Your Name"
+
+
+def test_serve_never_overwrites_existing_cvs(data_dir, monkeypatch):
+    import sys
+
+    from cv_maker import cli, server
+
+    monkeypatch.setattr(server, "run_server", lambda path, port: None)
+    before = (data_dir / "cv_data.yaml").read_text(encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["cv_maker", "--data", str(data_dir / "other.yaml"), "--serve"])
+    cli.main()
+    assert not (data_dir / "other.yaml").exists()
+    assert (data_dir / "cv_data.yaml").read_text(encoding="utf-8") == before

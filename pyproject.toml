@@ -1,7 +1,9 @@
 [project]
 name = "cv-maker"
 version = "0.1.0"
-description = "CLI tool to generate professional PDF CVs from YAML data"
+description = "Write CVs in YAML, edit them in a live-preview web editor, and check how they survive ATS parsing"
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml",

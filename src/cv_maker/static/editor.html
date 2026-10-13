@@ -365,6 +365,9 @@ function syncStyleSelect(yamlText) {
     } catch (e) { /* invalid YAML: leave the select alone */ }
 }
 let loadedCv = null;
+// Modification time of the file as loaded; sent with each save so the server
+// can refuse to overwrite a newer version written by another tab.
+let loadedMtime = null;
 let defaultCv = null;
 
 function markDirty() { dirty = true; }
@@ -818,6 +821,7 @@ async function loadYaml(cv) {
     yamlEl.value = d.yaml;
     dirty = false;
     loadedCv = cv;
+    loadedMtime = d.mtime;
     if (currentView === 'fields') {
         try {
             const data = jsyaml.load(yamlEl.value) || {};
@@ -996,14 +1000,37 @@ async function downloadFrom(endpoint, filename) {
     URL.revokeObjectURL(a.href);
 }
 
+async function postSave(baseMtime) {
+    return fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            yaml: getPayload().yaml,
+            cv: cvEl.value || null,
+            base_mtime: cvEl.value === loadedCv ? baseMtime : null,
+        }),
+    });
+}
+
 document.getElementById('saveBtn').addEventListener('click', async () => {
     try {
-        const res = await fetch('/api/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ yaml: getPayload().yaml, cv: cvEl.value || null }),
-        });
+        let res = await postSave(loadedMtime);
+        if (res.status === 409) {
+            const overwrite = confirm(
+                'This CV changed on disk after you opened it, probably in another tab.\n\n' +
+                'OK overwrites the newer version with what is in this tab (a backup is kept).\n' +
+                'Cancel leaves the file alone so you can reload it.'
+            );
+            if (!overwrite) {
+                flash('Not saved: the file on disk is newer. Reload the CV to see it.', true);
+                return;
+            }
+            res = await postSave(null);
+        }
         if (!res.ok) throw new Error(await errorDetail(res));
+        const saved = await res.json();
+        loadedMtime = saved.mtime;
+        loadedCv = cvEl.value;
         dirty = false;
         // Saving a CV that did not exist yet adds a file, so refresh the list.
         loadCvs(cvEl.value).catch(() => {});

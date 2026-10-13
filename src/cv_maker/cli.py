@@ -116,8 +116,13 @@ def main():
         sys.exit(1 if blocking else 0)
 
     if args.serve:
-        from cv_maker.server import run_server
+        from cv_maker.server import _starter_yaml, run_server
 
+        if not data_path.exists() and not list_cvs(data_dir, suffix):
+            # A fresh clone has an empty data/: give the editor something to open.
+            data_path.parent.mkdir(parents=True, exist_ok=True)
+            data_path.write_text(_starter_yaml(), encoding="utf-8")
+            print(f"No CV found, so created a starter one at {data_path}")
         run_server(data_path, port=args.port)
     else:
         # Keep the historical output/cv.pdf default; only a named CV gets its

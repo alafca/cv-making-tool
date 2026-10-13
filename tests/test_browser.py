@@ -447,7 +447,7 @@ def test_experience_dates_sit_below_the_employer_and_stay_editable(page):
 
 def _contrast(page, selector: str) -> float:
     """WCAG contrast of an element's text against its own background."""
-    return page.evaluate("""(sel) => {
+    return page.evaluate(r"""(sel) => {
         const el = document.querySelector(sel);
         const cs = getComputedStyle(el);
         const parse = c => c.match(/[\d.]+/g).slice(0, 3).map(Number);
@@ -567,3 +567,59 @@ def test_page_has_landmarks_and_a_heading_outline(page):
     page.click("#btnYaml")
     assert page.get_attribute("#btnYaml", "aria-pressed") == "true"
     assert page.get_attribute("#btnFields", "aria-pressed") == "false"
+
+
+# --- stale-save guard ----------------------------------------------------------
+
+
+def _touch_newer(path: Path, text: str) -> None:
+    import os
+
+    stat = path.stat()
+    path.write_text(text, encoding="utf-8")
+    later = stat.st_mtime_ns + 10**9
+    os.utime(path, ns=(later, later))
+
+
+def test_save_asks_before_overwriting_a_file_changed_elsewhere(page, testing_cv_dir: Path):
+    path = testing_cv_dir / "testing_cv.yaml"
+    _touch_newer(path, path.read_text(encoding="utf-8").replace("Robin Testerson", "Edited Elsewhere"))
+
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.fill("#f-headline", "From The Stale Tab")
+    page.wait_for_timeout(1200)
+    page.click("#saveBtn")
+    page.wait_for_timeout(2000)
+
+    assert dialogs and "changed on disk" in dialogs[0]
+    assert "Edited Elsewhere" in path.read_text(encoding="utf-8")  # cancel kept the newer file
+    assert "Not saved" in page.inner_text("#status")
+
+
+def test_save_anyway_overwrites_and_keeps_a_backup(page, testing_cv_dir: Path):
+    path = testing_cv_dir / "testing_cv.yaml"
+    _touch_newer(path, path.read_text(encoding="utf-8").replace("Robin Testerson", "Edited Elsewhere"))
+
+    page.on("dialog", lambda d: d.accept())
+    page.fill("#f-headline", "From The Stale Tab")
+    page.wait_for_timeout(1200)
+    page.click("#saveBtn")
+    page.wait_for_timeout(2000)
+
+    saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert saved["headline"] == "From The Stale Tab"
+    assert "Edited Elsewhere" in (testing_cv_dir / "testing_cv.yaml.bak").read_text(encoding="utf-8")
+
+
+def test_two_saves_in_a_row_do_not_trip_the_guard(page, testing_cv_dir: Path):
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.accept()))
+    for headline in ("First Save", "Second Save"):
+        page.fill("#f-headline", headline)
+        page.wait_for_timeout(1200)
+        page.click("#saveBtn")
+        page.wait_for_timeout(1500)
+    assert dialogs == []
+    saved = yaml.safe_load((testing_cv_dir / "testing_cv.yaml").read_text(encoding="utf-8"))
+    assert saved["headline"] == "Second Save"
